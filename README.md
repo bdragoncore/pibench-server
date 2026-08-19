@@ -53,10 +53,12 @@
   - `bash`: Shell execution with timeout safety.
   - `read` / `write` / `edit`: Line-buffered reading, atomic writing, and chunk patch editing.
   - `gpio_control`: AI pin status reading, digital I/O writing, PWM, and peripheral overlay toggling.
+  - `host_shell`: Direct shell command execution on any connected host machine via Reverse SSH bridge (`127.0.0.1:22222`), allowing the AI to access live booted host PCs/workstations zero-config.
   - `superuser_access`: Elevated privilege authentication & password inbox.
 - **SQLite Persistence**: Embedded pure Go database (`modernc.org/sqlite`).
 
 ### 2. `usb-server` (Admin Portal & Hardware Suite)
+- **🛠️ Tools & Reverse SSH Host Bridge (`/tools`)**: Auto-detects reverse SSH tunnels, generates copyable 1-liner host connection commands (`ssh -R 22222:localhost:22`), manages public SSH keys, and provides a host connection tester.
 - **⚡ PiScope Digital Logic Analyzer**: 60 FPS HTML5 Canvas logic scope with timebase scaling, dual measurement cursors (Cursor A/B with real-time $\Delta t$ microsecond readout & frequency counter), I2C/UART protocol decoders, mouse wheel zooming, and VCD/CSV capture exports.
 - **🔌 Active Hardware Peripheral Control**: Detects and toggles SPI, I2C, UART Serial, 1-Wire, Hardware Shutdown Button, Fan Control, PWM Audio, and USB Gadget overlays (`raspi-config nonint`).
 - **📶 WiFi & Web Terminal**: Interactive web terminal shell (PTY websocket) and network manager.
