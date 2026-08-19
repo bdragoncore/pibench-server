@@ -9,37 +9,36 @@ import (
 	"sync"
 )
 
-// Config holds everything opencode-tiny needs to talk to the LLM and
-// run its agent loop. It's intentionally tiny: one provider, one model,
-// no plugin/LSP/permission system.
+// Config holds everything opencode-tiny needs to communicate with the OpenAI-compatible LLM gateway
+// and run its single-turn and multi-turn agent tool execution loop.
 type Config struct {
-	BaseURL      string // OpenAI-compatible /v1 base, e.g. http://100.74.64.121:5000/v1
-	APIKey       string // optional; empty if the upstream needs none
-	Model        string // model id sent to the upstream, e.g. deepseek-v4-flash-free
-	Workdir      string // default cwd for tools
-	Port         string
-	Hostname     string
-	DBPath       string
-	MaxTurns     int // agent loop cap to avoid runaway tool-call chains
+	BaseURL      string // OpenAI-compatible /v1 endpoint base URL (e.g. http://pibox.local:5000/v1)
+	APIKey       string // Optional API bearer token; empty if upstream requires none
+	Model        string // Active LLM model ID sent to the gateway (e.g. zen-deepseek-v4-flash-free)
+	Workdir      string // Default working directory for local tool execution
+	Port         string // Listening HTTP port for the opencode-tiny server
+	Hostname     string // Hostname or IP binding address
+	DBPath       string // SQLite session database file path
+	MaxTurns     int    // Maximum agent tool-calling loop turns per request to prevent infinite loops
 	mu           sync.RWMutex
-	sudoPassword string
+	sudoPassword string // In-memory cached superuser password for elevated tool execution
 }
 
+// setSudoPassword safely caches the superuser password in memory.
 func (c *Config) setSudoPassword(pass string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.sudoPassword = pass
 }
 
+// getSudoPassword safely retrieves the cached superuser password.
 func (c *Config) getSudoPassword() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.sudoPassword
 }
 
-// opencodeProviderConfig mirrors just the slice of opencode's own
-// opencode.json that we need, so opencode-tiny can reuse the same
-// provider setup instead of duplicating credentials/endpoints.
+// opencodeProviderConfig mirrors the JSON structure of OpenCode's opencode.json configuration file.
 type opencodeProviderConfig struct {
 	Provider map[string]struct {
 		Options struct {
@@ -49,6 +48,7 @@ type opencodeProviderConfig struct {
 	Model string `json:"model"`
 }
 
+// loadDotEnv parses key=value pairs from a .env file and sets them in process environment if not already set.
 func loadDotEnv(filename string) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
@@ -73,6 +73,7 @@ func loadDotEnv(filename string) {
 	}
 }
 
+// loadConfig initializes server configuration by combining environment variables, .env files, and opencode.json settings.
 func loadConfig() (*Config, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -148,9 +149,7 @@ func loadConfig() (*Config, error) {
 		cfg.Model = "zen-deepseek-v4-flash-free"
 	}
 
-	// exec.Cmd.Dir requires the directory to already exist (it fails at
-	// chdir before the shell even runs), so a misconfigured/fresh workdir
-	// would otherwise make every bash tool call fail. Create it up front.
+	// Ensure workdir exists
 	if err := os.MkdirAll(cfg.Workdir, 0o755); err != nil {
 		return nil, fmt.Errorf("create workdir %s: %w", cfg.Workdir, err)
 	}
@@ -158,6 +157,7 @@ func loadConfig() (*Config, error) {
 	return cfg, nil
 }
 
+// getConfigPath returns the resolved filesystem path to the opencode.json configuration file.
 func getConfigPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -166,6 +166,7 @@ func getConfigPath() string {
 	return envOr("OPENCODE_TINY_CONFIG", filepath.Join(home, ".config", "opencode", "opencode.json"))
 }
 
+// readConfigRaw reads the raw byte content of the opencode.json configuration file.
 func readConfigRaw() ([]byte, error) {
 	path := getConfigPath()
 	data, err := os.ReadFile(path)
@@ -175,6 +176,7 @@ func readConfigRaw() ([]byte, error) {
 	return data, nil
 }
 
+// writeConfigRaw writes byte content atomically to the opencode.json configuration file.
 func writeConfigRaw(data []byte) error {
 	path := getConfigPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -183,6 +185,7 @@ func writeConfigRaw(data []byte) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+// getDefaultOpenMindConfig generates the default JSON configuration payload for the OpenMind gateway.
 func getDefaultOpenMindConfig() string {
 	baseURL := envOr("OPENMIND_BASE_URL", envOr("OPENCODE_TINY_BASE_URL", "http://pibox.local:5000/v1"))
 	return fmt.Sprintf(`{
@@ -285,6 +288,7 @@ const defaultOpenMindConfigBody = `
   }
 }`
 
+// envOr returns the environment variable value if set, otherwise returning fallback.
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

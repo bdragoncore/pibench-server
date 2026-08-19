@@ -12,8 +12,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Store is a minimal SQLite-backed session log: just enough to list past
-// chats and replay a conversation, not opencode's full schema.
+// Store manages conversation session state and message history using a lightweight, pure-Go SQLite database.
 type Store struct {
 	db *sql.DB
 }
@@ -35,6 +34,7 @@ CREATE TABLE IF NOT EXISTS message (
 CREATE INDEX IF NOT EXISTS message_session_idx ON message(session_id, created_at);
 `
 
+// openStore initializes the SQLite database at the specified filesystem path and creates missing schema tables.
 func openStore(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
@@ -43,13 +43,14 @@ func openStore(path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(1) // modernc.org/sqlite: keep it simple, avoid locking contention
+	db.SetMaxOpenConns(1) // Keep max open connections to 1 to avoid database locking contention in modernc.org/sqlite
 	if _, err := db.Exec(schema); err != nil {
 		return nil, err
 	}
 	return &Store{db: db}, nil
 }
 
+// createSession inserts a new chat session record with the specified title and returns its unique UUID.
 func (s *Store) createSession(title string) (string, error) {
 	id := uuid.NewString()
 	now := time.Now().UnixMilli()
@@ -57,11 +58,13 @@ func (s *Store) createSession(title string) (string, error) {
 	return id, err
 }
 
+// touchSession updates the updated_at timestamp of a session to move it to the top of recent chat lists.
 func (s *Store) touchSession(id string) error {
 	_, err := s.db.Exec(`UPDATE session SET updated_at = ? WHERE id = ?`, time.Now().UnixMilli(), id)
 	return err
 }
 
+// addMessage appends a Message to the session log database and touches the session timestamp.
 func (s *Store) addMessage(sessionID string, msg Message) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
@@ -75,6 +78,7 @@ func (s *Store) addMessage(sessionID string, msg Message) error {
 	return s.touchSession(sessionID)
 }
 
+// loadMessages retrieves all ordered historical messages for a given session ID.
 func (s *Store) loadMessages(sessionID string) ([]Message, error) {
 	rows, err := s.db.Query(`SELECT data FROM message WHERE session_id = ? ORDER BY created_at ASC`, sessionID)
 	if err != nil {
@@ -104,6 +108,7 @@ type sessionSummary struct {
 	UpdatedAt int64  `json:"updated_at"`
 }
 
+// listSessions returns the 100 most recently updated session summaries.
 func (s *Store) listSessions() ([]sessionSummary, error) {
 	rows, err := s.db.Query(`SELECT id, title, created_at, updated_at FROM session ORDER BY updated_at DESC LIMIT 100`)
 	if err != nil {
@@ -122,6 +127,7 @@ func (s *Store) listSessions() ([]sessionSummary, error) {
 	return out, rows.Err()
 }
 
+// sessionExists checks whether a session with the given ID exists in the database.
 func (s *Store) sessionExists(id string) (bool, error) {
 	var count int
 	err := s.db.QueryRow(`SELECT COUNT(1) FROM session WHERE id = ?`, id).Scan(&count)
@@ -131,6 +137,7 @@ func (s *Store) sessionExists(id string) (bool, error) {
 	return count > 0, nil
 }
 
+// deleteSession removes a session and all its associated message records from the database.
 func (s *Store) deleteSession(id string) error {
 	if _, err := s.db.Exec(`DELETE FROM message WHERE session_id = ?`, id); err != nil {
 		return err
@@ -138,4 +145,3 @@ func (s *Store) deleteSession(id string) error {
 	_, err := s.db.Exec(`DELETE FROM session WHERE id = ?`, id)
 	return err
 }
-

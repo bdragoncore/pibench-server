@@ -1,3 +1,5 @@
+// Package main implements opencode-tiny, a minimal, memory-conscious AI agentic server in Go
+// designed specifically for low-RAM single-board computers like the Raspberry Pi Zero 2 W.
 package main
 
 import (
@@ -14,9 +16,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// staticFS embeds static HTML, CSS, and JS web portal assets into the single Go binary.
 //go:embed static
 var staticFS embed.FS
 
+// main initializes configuration, database storage, HTTP routing, and starts the web server.
 func main() {
 	cfg, err := loadConfig()
 	if err != nil {
@@ -166,6 +170,7 @@ func main() {
 	log.Fatal(srv.ListenAndServe())
 }
 
+// handleGlobalHealth responds to OpenCode SDK health check requests.
 func handleGlobalHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
 		"healthy": true,
@@ -173,6 +178,7 @@ func handleGlobalHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleGlobalEvents manages global Server-Sent Events (SSE) keepalive streams for OpenCode SDK clients.
 func handleGlobalEvents(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -198,6 +204,7 @@ func handleGlobalEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleOpenCodeSession handles OpenCode SDK compatibility endpoints (/session/{id}/prompt and /session/{id}/messages).
 func handleOpenCodeSession(w http.ResponseWriter, r *http.Request, cfg *Config, store *Store) {
 	path := strings.TrimPrefix(r.URL.Path, "/session/")
 	parts := strings.Split(path, "/")
@@ -290,6 +297,7 @@ func handleOpenCodeSession(w http.ResponseWriter, r *http.Request, cfg *Config, 
 	handleSessionDetail(w, r, store)
 }
 
+// handleSessions handles session listing (GET) and creation (POST) requests.
 func handleSessions(w http.ResponseWriter, r *http.Request, store *Store) {
 	switch r.Method {
 	case http.MethodGet:
@@ -299,7 +307,7 @@ func handleSessions(w http.ResponseWriter, r *http.Request, store *Store) {
 			return
 		}
 		writeJSON(w, sessions)
-		case http.MethodPost:
+	case http.MethodPost:
 		var body struct {
 			Title string `json:"title"`
 		}
@@ -318,8 +326,8 @@ func handleSessions(w http.ResponseWriter, r *http.Request, store *Store) {
 	}
 }
 
+// handleSessionDetail handles single session retrieval and session deletion (DELETE).
 func handleSessionDetail(w http.ResponseWriter, r *http.Request, store *Store) {
-	// path: /api/sessions/{id}/messages OR /api/sessions/{id}
 	path := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
 	parts := strings.Split(path, "/")
 	if len(parts) == 0 || parts[0] == "" {
@@ -351,6 +359,7 @@ func handleSessionDetail(w http.ResponseWriter, r *http.Request, store *Store) {
 	http.NotFound(w, r)
 }
 
+// handleChat processes an agent chat turn and streams real-time SSE event tokens to the client.
 func handleChat(w http.ResponseWriter, r *http.Request, cfg *Config, store *Store) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -410,6 +419,7 @@ func handleChat(w http.ResponseWriter, r *http.Request, cfg *Config, store *Stor
 	}
 }
 
+// writeJSON writes a JSON response payload with application/json Content-Type.
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)

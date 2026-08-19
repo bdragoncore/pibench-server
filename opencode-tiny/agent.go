@@ -8,23 +8,21 @@ import (
 )
 
 const systemPrompt = `You are opencode-tiny, a minimal coding assistant running on a resource-constrained machine.
-You have four tools: bash, read_file, write_file, edit_file. Use them to inspect and modify files
-and run commands on this machine. Be concise. When a task is done, say so plainly without re-explaining
-what you already did.`
+You have tools for shell execution (bash), reading files (read_file), writing files (write_file), editing files (edit_file), controlling GPIO pins (gpio_control), superuser access (superuser_access), and host execution (host_shell).
+Use them to inspect and modify files, control hardware, and run commands. Be concise. When a task is done, say so plainly.`
 
-// AgentEvent is one unit of progress emitted during a turn, sent to the
-// browser as an SSE frame.
+// AgentEvent represents a single real-time event unit emitted during an agent turn, streamed to clients as an SSE data frame.
 type AgentEvent struct {
-	Type    string `json:"type"` // text | tool_call | tool_result | done | error
-	Text    string `json:"text,omitempty"`
-	Tool    string `json:"tool,omitempty"`
-	Args    string `json:"args,omitempty"`
-	Output  string `json:"output,omitempty"`
-	Message string `json:"message,omitempty"`
+	Type    string `json:"type"`             // Event classification: "text", "tool_call", "tool_result", "done", or "error"
+	Text    string `json:"text,omitempty"`    // Streamed text token content
+	Tool    string `json:"tool,omitempty"`    // Executed tool name
+	Args    string `json:"args,omitempty"`    // Arguments JSON passed to the tool
+	Output  string `json:"output,omitempty"`  // Execution result/stdout returned by the tool
+	Message string `json:"message,omitempty"` // Human-readable error or status message
 }
 
-// runAgentTurn drives the model+tool loop for one user message, persisting
-// every message to the store and emitting AgentEvents via emit as it goes.
+// runAgentTurn drives the LLM completion and tool-execution loop for a user message,
+// persisting messages to SQLite and emitting AgentEvent SSE frames to the client.
 func runAgentTurn(ctx context.Context, cfg *Config, store *Store, sessionID, userText string, emit func(AgentEvent)) error {
 	history, err := store.loadMessages(sessionID)
 	if err != nil {
@@ -96,8 +94,7 @@ func runAgentTurn(ctx context.Context, cfg *Config, store *Store, sessionID, use
 	return errors.New(msg)
 }
 
-// marshalEvent is a small helper used by the HTTP layer to write an
-// AgentEvent as an SSE "data: ..." line.
+// marshalEvent serializes an AgentEvent struct into a JSON string formatted for SSE transmission.
 func marshalEvent(ev AgentEvent) string {
 	b, err := json.Marshal(ev)
 	if err != nil {

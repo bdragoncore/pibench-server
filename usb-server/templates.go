@@ -11,6 +11,7 @@ var (
 	tmpls    map[string]*template.Template
 )
 
+// loadTemplates parses and caches HTML page templates and HTMX fragment partials once on startup.
 func loadTemplates() map[string]*template.Template {
 	tmplOnce.Do(func() {
 		tmpls = map[string]*template.Template{}
@@ -28,6 +29,7 @@ func loadTemplates() map[string]*template.Template {
 	return tmpls
 }
 
+// renderPage executes a full HTML layout template extending web/base.html.
 func renderPage(w http.ResponseWriter, page string, data any) {
 	t, ok := loadTemplates()[page]
 	if !ok {
@@ -39,6 +41,7 @@ func renderPage(w http.ResponseWriter, page string, data any) {
 	}
 }
 
+// renderFragment executes an isolated HTMX HTML fragment snippet without base layout wrappers.
 func renderFragment(w http.ResponseWriter, name string, data any) {
 	t, ok := loadTemplates()[name]
 	if !ok {
