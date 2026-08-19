@@ -1,0 +1,27 @@
+{{define "content"}}
+<div class="tools-container">
+  <div class="tools-header">
+    <h2>🛠️ System Tools & Reverse SSH Host Access</h2>
+    <p class="subtitle">Grant OpenCode AI and local processes instant SSH shell access back to your host machine without hardcoding credentials or IPs.</p>
+  </div>
+
+  <div class="card reverse-ssh-card" id="reverse-ssh-card" hx-get="/tools/reverse-ssh/status" hx-trigger="load, every 5s">
+    <!-- Rendered by reverse_ssh fragment -->
+  </div>
+
+  <div class="card key-setup-card">
+    <h3>🔑 Host Authentication & SSH Key Exchange</h3>
+    <p>To enable passwordless host command execution for AI, copy the Pi's public SSH key below into your host machine's <code>~/.ssh/authorized_keys</code>:</p>
+    
+    <div class="key-box">
+      <textarea id="pi-pubkey" readonly class="code-textarea">{{.PubKey}}</textarea>
+      <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('pi-pubkey').value)">📋 Copy Public Key</button>
+    </div>
+
+    <div class="instructions">
+      <h4>Quick One-Liner Host Setup (Run on Host Machine):</h4>
+      <pre class="cmd-snippet"><code>curl -s http://{{.PiIP}}:8080/tools/pubkey >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys</code></pre>
+    </div>
+  </div>
+</div>
+{{end}}

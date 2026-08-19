@@ -1,16 +1,19 @@
 package main
 
 import (
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 type WifiNetwork struct {
@@ -620,6 +623,99 @@ func (s *Server) handlePiScopePage(w http.ResponseWriter, r *http.Request) {
 	renderPage(w, "piscope", nil)
 }
 
+func getOrGenSSHPubKey() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = "/tmp"
+	}
+	pubPath := filepath.Join(home, ".ssh", "id_rsa.pub")
+	if data, err := os.ReadFile(pubPath); err == nil {
+		return strings.TrimSpace(string(data))
+	}
+	pubEd := filepath.Join(home, ".ssh", "id_ed25519.pub")
+	if data, err := os.ReadFile(pubEd); err == nil {
+		return strings.TrimSpace(string(data))
+	}
+	sshDir := filepath.Join(home, ".ssh")
+	_ = os.MkdirAll(sshDir, 0700)
+	keyPath := filepath.Join(sshDir, "id_ed25519")
+	_, _ = runCmd("ssh-keygen", "-t", "ed25519", "-N", "", "-f", keyPath)
+	if data, err := os.ReadFile(pubEd); err == nil {
+		return strings.TrimSpace(string(data))
+	}
+	return "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExamplePublicKeyForPiZero pibench"
+}
+
+func checkPortActive(port int) bool {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 500*time.Millisecond)
+	if err == nil {
+		conn.Close()
+		return true
+	}
+	return false
+}
+
+func (s *Server) getPrimaryPiIP() string {
+	st := s.getWifiStatus()
+	if st.IP != "" {
+		return st.IP
+	}
+	return "10.12.194.1"
+}
+
+func (s *Server) handleToolsPage(w http.ResponseWriter, r *http.Request) {
+	pub := getOrGenSSHPubKey()
+	piIP := s.getPrimaryPiIP()
+	renderPage(w, "tools", map[string]any{
+		"PubKey": pub,
+		"PiIP":   piIP,
+	})
+}
+
+func (s *Server) handleReverseSSHStatus(w http.ResponseWriter, r *http.Request) {
+	isActive := checkPortActive(22222)
+	user := os.Getenv("USER")
+	if user == "" {
+		user = "bperris"
+	}
+	piIP := s.getPrimaryPiIP()
+	renderFragment(w, "reverse_ssh", map[string]any{
+		"IsActive": isActive,
+		"Port":     22222,
+		"User":     user,
+		"PiIP":     piIP,
+	})
+}
+
+func (s *Server) handleReverseSSHTest(w http.ResponseWriter, r *http.Request) {
+	testCmd := r.FormValue("cmd")
+	if testCmd == "" {
+		testCmd = "uname -a && hostname"
+	}
+
+	if !checkPortActive(22222) {
+		w.Write([]byte("Error: Reverse SSH tunnel on port 22222 is not active."))
+		return
+	}
+
+	user := os.Getenv("USER")
+	if user == "" {
+		user = "bperris"
+	}
+
+	out, err := runCmd("ssh", "-p", "22222", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes", user+"@127.0.0.1", testCmd)
+	if err != nil {
+		w.Write([]byte(fmt.Sprintf("Error executing command on host (%v):\n%s", err, out)))
+		return
+	}
+	w.Write([]byte(fmt.Sprintf("Success!\nHost Output:\n%s", out)))
+}
+
+func (s *Server) handlePubKey(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte(getOrGenSSHPubKey() + "\n"))
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -649,6 +745,10 @@ func main() {
 	mux.HandleFunc("/gpio/set", s.handleGPIOSet)
 	mux.HandleFunc("/gpio/peripheral/toggle", s.handleGPIOPeripheralToggle)
 	mux.HandleFunc("/piscope", s.handlePiScopePage)
+	mux.HandleFunc("/tools", s.handleToolsPage)
+	mux.HandleFunc("/tools/reverse-ssh/status", s.handleReverseSSHStatus)
+	mux.HandleFunc("/tools/reverse-ssh/test", s.handleReverseSSHTest)
+	mux.HandleFunc("/tools/pubkey", s.handlePubKey)
 
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 

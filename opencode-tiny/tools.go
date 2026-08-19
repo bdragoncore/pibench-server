@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -135,6 +136,22 @@ var toolSpecs = []ToolSpec{
 			}`),
 		},
 	},
+	{
+		Type: "function",
+		Function: ToolFunction{
+			Name:        "host_shell",
+			Description: "Execute a shell command directly on the host machine connected via the Reverse SSH tunnel (127.0.0.1:22222). Use this to access the host system without needing host IP or credentials.",
+			Parameters: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"command": {"type": "string", "description": "The shell command to execute on the host machine"},
+					"user": {"type": "string", "description": "Optional host username (defaults to active user)"},
+					"timeout_seconds": {"type": "integer", "description": "Optional timeout, default 60, max 180"}
+				},
+				"required": ["command"]
+			}`),
+		},
+	},
 }
 
 // resolvePath makes relative tool paths relative to the configured workdir.
@@ -173,9 +190,71 @@ func runTool(ctx context.Context, cfg *Config, name string, argsJSON string) str
 		return toolSuperuserAccess(cfg, args)
 	case "gpio_control":
 		return toolGpioControl(ctx, cfg, args)
+	case "host_shell":
+		return toolHostShell(ctx, cfg, args)
 	default:
 		return fmt.Sprintf("error: unknown tool %q", name)
 	}
+}
+
+func toolHostShell(ctx context.Context, cfg *Config, args map[string]any) string {
+	cmdStr, _ := args["command"].(string)
+	if strings.TrimSpace(cmdStr) == "" {
+		return "error: command parameter is required"
+	}
+
+	conn, err := net.DialTimeout("tcp", "127.0.0.1:22222", 1*time.Second)
+	if err != nil {
+		return "error: Reverse SSH tunnel is not active on port 22222. Please run the reverse SSH command from your host machine first (see Tools page at http://<pi_ip>:8080/tools)."
+	}
+	conn.Close()
+
+	timeout := defaultBashTimeout
+	if tSec, ok := args["timeout_seconds"].(float64); ok && tSec > 0 {
+		t := time.Duration(tSec) * time.Second
+		if t > maxBashTimeout {
+			t = maxBashTimeout
+		}
+		timeout = t
+	}
+
+	subCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	user, _ := args["user"].(string)
+	if user == "" {
+		user = os.Getenv("USER")
+		if user == "" {
+			user = "bperris"
+		}
+	}
+
+	sshArgs := []string{
+		"-p", "22222",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "ConnectTimeout=5",
+		"-o", "BatchMode=yes",
+		user + "@127.0.0.1",
+		cmdStr,
+	}
+
+	cmd := exec.CommandContext(subCtx, "ssh", sshArgs...)
+	out, err := cmd.CombinedOutput()
+
+	if subCtx.Err() == context.DeadlineExceeded {
+		return fmt.Sprintf("error: host_shell timed out after %v\npartial output:\n%s", timeout, truncate(string(out), maxToolOutput))
+	}
+
+	if err != nil {
+		return fmt.Sprintf("host command failed (%v):\n%s", err, truncate(string(out), maxToolOutput))
+	}
+
+	res := string(out)
+	if strings.TrimSpace(res) == "" {
+		return "(command executed on host with no output)"
+	}
+	return truncate(res, maxToolOutput)
 }
 
 func toolSuperuserAccess(cfg *Config, args map[string]any) string {

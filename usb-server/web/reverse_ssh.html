@@ -1,0 +1,39 @@
+<div class="status-header">
+  <h3>⚡ Reverse SSH Host Tunnel Status</h3>
+  {{if .IsActive}}
+  <span class="status-badge active">● ACTIVE (127.0.0.1:{{.Port}} Linked)</span>
+  {{else}}
+  <span class="status-badge inactive">○ INACTIVE (Waiting for Host Connection)</span>
+  {{end}}
+</div>
+
+<div class="tunnel-body">
+  <p>Run one of the following commands from any host machine (live-boot PC, laptop, Mac, workstation) to establish a reverse SSH tunnel to this Pi Zero:</p>
+
+  <div class="cmd-option-group">
+    <div class="cmd-header">
+      <span>🐧 Linux / 🍎 macOS Host Command:</span>
+      <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('cmd-linux').innerText)">📋 Copy Command</button>
+    </div>
+    <pre class="cmd-code"><code id="cmd-linux">ssh -N -R {{.Port}}:localhost:22 -o ServerAliveInterval=15 -o StrictHostKeyChecking=no {{.User}}@{{.PiIP}}</code></pre>
+  </div>
+
+  <div class="cmd-option-group">
+    <div class="cmd-header">
+      <span>🪟 Windows PowerShell Host Command:</span>
+      <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('cmd-win').innerText)">📋 Copy Command</button>
+    </div>
+    <pre class="cmd-code"><code id="cmd-win">ssh -N -R {{.Port}}:localhost:22 -o ServerAliveInterval=15 -o StrictHostKeyChecking=no {{.User}}@{{.PiIP}}</code></pre>
+  </div>
+
+  {{if .IsActive}}
+  <div class="test-runner-box">
+    <h4>🧪 Test Host Connection (From Pi -> Host)</h4>
+    <form hx-post="/tools/reverse-ssh/test" hx-target="#test-output-result" class="test-form">
+      <input type="text" name="cmd" class="form-input" value="uname -a && hostname" placeholder="Enter test command (e.g. uname -a)...">
+      <button class="btn-primary" type="submit">Run on Host</button>
+    </form>
+    <pre id="test-output-result" class="test-result">Click 'Run on Host' to execute a test shell command across the reverse SSH bridge.</pre>
+  </div>
+  {{end}}
+</div>
