@@ -1,0 +1,71 @@
+{{define "content"}}
+<div class="piscope-container">
+  <div class="piscope-toolbar">
+    <div class="toolbar-left">
+      <h2 class="piscope-title">⚡ PiScope — Professional Logic Analyzer & Protocol Viewer</h2>
+      <span class="status-indicator live" id="scope-status">● LIVE 60 FPS</span>
+    </div>
+    <div class="toolbar-controls">
+      <button id="btn-toggle-run" class="btn-scope run" type="button">⏸ Pause</button>
+      <button id="btn-clear-scope" class="btn-scope danger" type="button">🗑 Clear</button>
+      
+      <div class="btn-group">
+        <button id="btn-zoom-in" class="btn-scope" title="Zoom In (+)" type="button">🔍 +</button>
+        <button id="btn-zoom-out" class="btn-scope" title="Zoom Out (-)" type="button">🔍 -</button>
+        <button id="btn-reset-view" class="btn-scope" title="Reset View" type="button">↺ Reset</button>
+      </div>
+
+      <div class="control-group">
+        <label for="timebase-select">Timebase:</label>
+        <select id="timebase-select" class="scope-select">
+          <option value="10">10 ms / div</option>
+          <option value="25">25 ms / div</option>
+          <option value="50">50 ms / div</option>
+          <option value="100" selected>100 ms / div</option>
+          <option value="250">250 ms / div</option>
+          <option value="500">500 ms / div</option>
+          <option value="1000">1 s / div</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label for="decoder-select">Decoder:</label>
+        <select id="decoder-select" class="scope-select">
+          <option value="none" selected>No Protocol Decoder</option>
+          <option value="i2c">I2C (SDA1 / SCL1)</option>
+          <option value="uart">UART Serial (TXD1 / RXD1)</option>
+        </select>
+      </div>
+
+      <button id="btn-test-gen" class="btn-scope accent" type="button">⚡ Demo Signal Generator</button>
+      <button id="btn-export-vcd" class="btn-scope" type="button">💾 Export VCD (GTKWave)</button>
+      <button id="btn-export-csv" class="btn-scope" type="button">📄 Export CSV</button>
+    </div>
+  </div>
+
+  <div class="channel-selector-bar">
+    <span class="channel-label">Active Channels:</span>
+    <div class="channel-pills" id="channel-pills"></div>
+  </div>
+
+  <div class="scope-delta-bar" id="scope-delta-bar">
+    <span class="delta-item">Cursor A: <strong id="cursor-a-val">-- ms</strong></span>
+    <span class="delta-item">Cursor B: <strong id="cursor-b-val">-- ms</strong></span>
+    <span class="delta-item highlight">Δt: <strong id="delta-t-val">-- ms</strong></span>
+    <span class="delta-item highlight">Freq (1/Δt): <strong id="delta-f-val">-- Hz</strong></span>
+    <span class="delta-hint">Tip: Click canvas to place Cursor A / Shift-Click for Cursor B. Wheel to Zoom.</span>
+  </div>
+
+  <div class="scope-canvas-wrap">
+    <canvas id="scope-canvas"></canvas>
+    <div id="scope-cursor-info" class="scope-cursor-info"></div>
+  </div>
+
+  <div class="scope-metrics-card">
+    <h3>Live Channel Metrics & Frequency Counter</h3>
+    <div class="metrics-grid" id="metrics-grid"></div>
+  </div>
+</div>
+
+<script src="/static/piscope.js?v=4"></script>
+{{end}}

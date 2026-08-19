@@ -1,0 +1,12 @@
+<div class="status-card">
+  {{if .Hotspot}}
+    <p class="ok">Hotspot active</p>
+    <p>Internet via USB (usb0)</p>
+  {{else if .Connected}}
+    <p class="ok">Connected to <strong>{{.SSID}}</strong></p>
+    <p>Signal: {{.Signal}}%</p>
+    <p>IP: {{.IP}}</p>
+  {{else}}
+    <p class="warn">Not connected to WiFi</p>
+  {{end}}
+</div>

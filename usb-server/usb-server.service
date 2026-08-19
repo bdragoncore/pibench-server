@@ -1,0 +1,18 @@
+[Unit]
+Description=usb-server admin portal (Go + HTMX)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=<user>
+WorkingDirectory=/home/<user>/usb-server
+Environment=PORT=8080
+ExecStart=/home/<user>/usb-server/usb-server
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

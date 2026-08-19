@@ -1,0 +1,18 @@
+# Build artifact
+/opencode-tiny
+/opencode-tiny-arm64
+
+# Environment files
+.env
+.env.local
+*.env
+!.env.example
+
+# Local session DB / test workdir
+*.db
+testwork/
+
+# Editor/OS noise
+*.swp
+*~
+.DS_Store

@@ -1,0 +1,100 @@
+<div class="peripherals-card">
+  <div class="peripherals-header">
+    <h3>Active Hardware Peripheral Configurations</h3>
+    <span class="config-source-badge">Source: /boot/firmware/config.txt & Kernel DT</span>
+  </div>
+  <div class="peripherals-grid">
+    {{range .Peripherals}}
+    <div class="peripheral-chip {{if .Enabled}}active{{else}}disabled{{end}}">
+      <div class="chip-top">
+        <span class="chip-name">{{.Name}}</span>
+        <span class="chip-status">{{if .Enabled}}ENABLED 🟢{{else}}DISABLED ⚪{{end}}</span>
+      </div>
+      <div class="chip-pins">{{.Pins}}</div>
+      <div class="chip-desc">{{.Description}}</div>
+      {{if .CanToggle}}
+      <div class="chip-actions">
+        {{if .Enabled}}
+        <button class="btn-periph disable" hx-post="/gpio/peripheral/toggle" hx-vals='{"peripheral": "{{.ID}}", "enable": "false"}' hx-target="#gpio-pins-wrap">Disable Overlay</button>
+        {{else}}
+        <button class="btn-periph enable" hx-post="/gpio/peripheral/toggle" hx-vals='{"peripheral": "{{.ID}}", "enable": "true"}' hx-target="#gpio-pins-wrap">Enable Overlay</button>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+</div>
+
+<div class="gpio-pin-grid">
+  <div class="gpio-legend">
+    <span class="legend-badge pwr-5v">5V Power</span>
+    <span class="legend-badge pwr-3v3">3.3V Power</span>
+    <span class="legend-badge gnd">Ground</span>
+    <span class="legend-badge high">HIGH (1 / 3.3V)</span>
+    <span class="legend-badge low">LOW (0 / 0V)</span>
+    <span class="legend-badge alt">ALT Function</span>
+  </div>
+
+  <table class="gpio-header-table">
+    <thead>
+      <tr>
+        <th class="text-right">Left Controls</th>
+        <th class="text-right">State</th>
+        <th class="text-right">Mode</th>
+        <th class="text-right">Signal</th>
+        <th class="text-center">Pin</th>
+        <th class="text-center">Pin</th>
+        <th class="text-left">Signal</th>
+        <th class="text-left">Mode</th>
+        <th class="text-left">State</th>
+        <th class="text-left">Right Controls</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Pairs}}
+      <tr>
+        <!-- Left (Odd Pin) -->
+        <td class="text-right ctrl-col">
+          {{if .Left.IsGPIO}}
+          <button class="btn-gpio high" hx-post="/gpio/set" hx-vals='{"bcm": {{.Left.BCM}}, "action": "high"}' hx-target="#gpio-pins-wrap">HIGH</button>
+          <button class="btn-gpio low" hx-post="/gpio/set" hx-vals='{"bcm": {{.Left.BCM}}, "action": "low"}' hx-target="#gpio-pins-wrap">LOW</button>
+          <button class="btn-gpio in" hx-post="/gpio/set" hx-vals='{"bcm": {{.Left.BCM}}, "action": "input"}' hx-target="#gpio-pins-wrap">IN</button>
+          {{end}}
+        </td>
+        <td class="text-right">
+          <span class="pin-state-badge {{.Left.StateClass}}">{{.Left.LevelLabel}}</span>
+        </td>
+        <td class="text-right">
+          <span class="pin-mode-badge {{.Left.ModeClass}}">{{.Left.ModeLabel}}</span>
+        </td>
+        <td class="text-right pin-name">
+          {{if .Left.PeripheralTag}}<span class="tag-periph">{{.Left.PeripheralTag}}</span>{{end}}
+          {{.Left.Name}}
+        </td>
+        <td class="text-center pin-num odd-pin">{{.Left.PinNum}}</td>
+
+        <!-- Right (Even Pin) -->
+        <td class="text-center pin-num even-pin">{{.Right.PinNum}}</td>
+        <td class="text-left pin-name">
+          {{.Right.Name}}
+          {{if .Right.PeripheralTag}}<span class="tag-periph">{{.Right.PeripheralTag}}</span>{{end}}
+        </td>
+        <td class="text-left">
+          <span class="pin-mode-badge {{.Right.ModeClass}}">{{.Right.ModeLabel}}</span>
+        </td>
+        <td class="text-left">
+          <span class="pin-state-badge {{.Right.StateClass}}">{{.Right.LevelLabel}}</span>
+        </td>
+        <td class="text-left ctrl-col">
+          {{if .Right.IsGPIO}}
+          <button class="btn-gpio high" hx-post="/gpio/set" hx-vals='{"bcm": {{.Right.BCM}}, "action": "high"}' hx-target="#gpio-pins-wrap">HIGH</button>
+          <button class="btn-gpio low" hx-post="/gpio/set" hx-vals='{"bcm": {{.Right.BCM}}, "action": "low"}' hx-target="#gpio-pins-wrap">LOW</button>
+          <button class="btn-gpio in" hx-post="/gpio/set" hx-vals='{"bcm": {{.Right.BCM}}, "action": "input"}' hx-target="#gpio-pins-wrap">IN</button>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>

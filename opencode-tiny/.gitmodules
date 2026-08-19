@@ -1,0 +1,3 @@
+[submodule "references/opencode"]
+	path = references/opencode
+	url = https://github.com/sst/opencode.git

@@ -1,0 +1,33 @@
+{{if .}}
+<table>
+  <thead>
+    <tr><th>SSID</th><th>Signal</th><th>Security</th><th></th></tr>
+  </thead>
+  <tbody>
+  {{range .}}
+    <tr>
+      <td>{{.SSID}}</td>
+      <td>{{.Signal}}%</td>
+      <td>{{.Security}}</td>
+      <td>
+        <form hx-post="/connect" hx-target="#msg" hx-swap="innerHTML">
+          <input type="hidden" name="ssid" value="{{.SSID}}">
+          {{if eq .Security "WPA2"}}
+            <input type="password" name="password" placeholder="password" required>
+          {{end}}
+          {{if .Active}}
+            <span class="badge">connected</span>
+            <button hx-post="/forget" hx-vals='{"ssid":"{{.SSID}}"}' hx-target="#msg">forget</button>
+          {{else}}
+            <button type="submit">connect</button>
+          {{end}}
+        </form>
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+<div id="msg"></div>
+{{else}}
+<p class="warn">No networks found. Try rescanning.</p>
+{{end}}

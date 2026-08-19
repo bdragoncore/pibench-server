@@ -1,0 +1,27 @@
+# Environment files
+.env
+.env.local
+*.env
+!.env.example
+
+# Build artifacts & binaries
+/opencode-tiny/opencode-tiny
+/opencode-tiny/opencode-tiny-arm64
+/usb-server/usb-server
+/usb-server/usb-server-arm64
+*.bin
+*.exe
+
+# Local session databases & test workdirs
+*.db
+testwork/
+
+# Logs & temp files
+*.log
+*.tmp
+/tmp/
+
+# OS/Editor noise
+.DS_Store
+*.swp
+*~

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenCode</title>
+  <meta name="theme-color" content="#1a1a2e">
+  <link rel="stylesheet" href="static/style.css?v=14">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="brand">
+        <h1>OpenCode</h1>
+        <span id="model-badge" class="badge" title="Active Model">loading...</span>
+      </div>
+      <div id="header-controls">
+        <div id="session-bar">
+          <div id="session-dropdown-wrap">
+            <button id="session-dropdown-btn" title="Select chat session" type="button">
+              <span id="session-dropdown-title">-- select chat --</span>
+              <span class="chevron">▼</span>
+            </button>
+            <div id="session-dropdown-menu" class="hidden">
+              <div class="dropdown-search-wrap">
+                <input type="text" id="session-search-input" placeholder="Search chats..." autocomplete="off">
+              </div>
+              <div id="session-items-list"></div>
+            </div>
+          </div>
+          <select id="session-select" aria-label="Saved chats" title="Select chat session" class="hidden"></select>
+          <button id="new-session" title="New chat session">+ New</button>
+          <button id="delete-session" class="btn-danger hidden" title="Delete current chat">🗑</button>
+        </div>
+        <button id="btn-settings" title="Provider & Model Settings">⚙</button>
+        <div id="actions-wrap">
+          <button id="btn-actions" title="Actions menu">⚡</button>
+          <div id="actions-menu" class="hidden">
+            <button id="opt-settings">⚙ Provider Settings</button>
+            <button id="opt-clear">Clear current view</button>
+            <button id="opt-export-json">Export conversation (JSON)</button>
+            <button id="opt-export-md">Export conversation (Markdown)</button>
+            <button id="opt-toggle-tools">Toggle tool outputs</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div id="log"></div>
+
+      <div id="status-bar" class="hidden">
+        <div class="spinner"></div>
+        <span id="status-text">OpenCode is working...</span>
+      </div>
+
+      <form id="chat-form">
+        <div class="input-container">
+          <textarea id="chat-input" rows="1" placeholder="Message OpenCode... (Enter to send, Shift+Enter for newline)" autofocus></textarea>
+          <button type="submit" id="send-btn" title="Send message">
+            <span>Send</span>
+            <svg class="send-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
+          </button>
+        </div>
+      </form>
+    </main>
+
+    <!-- Provider Settings Modal -->
+    <div id="settings-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <h2>⚙ Provider & Model Settings</h2>
+            <span class="modal-subtitle">Configure LLM providers and opencode.json</span>
+          </div>
+          <button id="modal-close" class="btn-icon" title="Close">×</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="setting-group">
+            <label for="settings-model-select">Active Model</label>
+            <select id="settings-model-select" class="form-input"></select>
+          </div>
+
+          <div class="setting-group">
+            <label for="settings-base-url">Provider Base URL</label>
+            <input type="text" id="settings-base-url" class="form-input" placeholder="http://pibox.local:5000/v1" readonly>
+          </div>
+
+          <div class="setting-group">
+            <div class="json-editor-header">
+              <label for="json-editor-textarea">opencode.json Configuration</label>
+              <div class="json-editor-actions">
+                <button id="btn-load-openmind-default" class="btn-sm" title="Load premade OpenMind default configuration from pibox:5000">⚡ Load OpenMind Defaults</button>
+                <button id="btn-format-json" class="btn-sm">🧹 Format</button>
+                <button id="btn-validate-json" class="btn-sm">✓ Validate</button>
+              </div>
+            </div>
+            <textarea id="json-editor-textarea" rows="14" spellcheck="false" placeholder="Paste opencode.json provider configuration here..."></textarea>
+            <div id="json-editor-error" class="error-msg hidden"></div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <span id="settings-status" class="status-msg"></span>
+          <div class="modal-footer-btns">
+            <button id="btn-cancel-settings">Cancel</button>
+            <button id="btn-save-settings" class="btn-primary">Save & Apply Config</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <script src="static/chat.js?v=14"></script>
+</body>
+</html>

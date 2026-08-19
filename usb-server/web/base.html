@@ -1,0 +1,28 @@
+{{define "base.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pibench admin</title>
+  <link rel="icon" href="data:,">
+  <script src="/static/htmx.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css?v=7">
+</head>
+<body>
+  <header>
+    <h1>pibench</h1>
+    <nav>
+      <a href="/">WiFi</a>
+      <a href="/shell">Terminal</a>
+      <a href="/opencode">OpenCode</a>
+      <a href="/gpio">GPIO</a>
+      <a href="/piscope">PiScope</a>
+    </nav>
+  </header>
+  <main>
+    {{template "content" .}}
+  </main>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,19 @@
+{{define "content"}}
+<div class="gpio-container">
+  <div class="gpio-header-card">
+    <div class="gpio-header-info">
+      <h2>Raspberry Pi Zero 2 W GPIO Hardware Monitor & Control</h2>
+      <p class="gpio-subtitle">Interactive 40-pin header layout, pin status monitoring, and direct digital I/O control powered by <code>pinctrl</code>.</p>
+    </div>
+    <div class="gpio-header-badge">
+      <a href="https://pinout.xyz/" target="_blank" rel="noopener" class="btn-pinout-ref">📖 Official pinout.xyz Reference ↗</a>
+    </div>
+  </div>
+
+  <div class="gpio-pinout-section">
+    <div id="gpio-pins-wrap" hx-get="/gpio/status" hx-trigger="load, every 2s" hx-swap="innerHTML">
+      <div class="loading-spinner">Loading GPIO pin states...</div>
+    </div>
+  </div>
+</div>
+{{end}}

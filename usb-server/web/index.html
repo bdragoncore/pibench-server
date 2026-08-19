@@ -1,0 +1,26 @@
+{{define "content"}}
+<section id="status" hx-get="/status" hx-trigger="load, every 10s">
+  <h2>Status</h2>
+  <p>Loading...</p>
+</section>
+
+<section>
+  <h2>Hotspot</h2>
+  <p>Turn wlan0 into a WiFi hotspot. Internet for connected clients is routed through the USB link (usb0).</p>
+  <div id="hotspot-msg"></div>
+  <form hx-post="/hotspot/enable" hx-target="#hotspot-msg" hx-swap="innerHTML">
+    <input type="text" name="ssid" placeholder="SSID (default: pibench)" value="pibench">
+    <input type="password" name="password" placeholder="password (min 8 chars)" required>
+    <button type="submit">Enable hotspot</button>
+  </form>
+  <button hx-post="/hotspot/disable" hx-target="#hotspot-msg" hx-swap="innerHTML">Disable hotspot</button>
+</section>
+
+<section>
+  <h2>Available networks</h2>
+  <button hx-get="/scan" hx-target="#networks" hx-swap="innerHTML">
+    Scan for networks
+  </button>
+  <div id="networks"></div>
+</section>
+{{end}}

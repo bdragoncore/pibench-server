@@ -1,0 +1,22 @@
+{{define "content"}}
+<style>
+  main {
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  #oc-wrap {
+    width: 100%;
+    height: 100%;
+    background: #1a1a2e;
+  }
+  #oc-frame {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+  }
+</style>
+<div id="oc-wrap">
+  <iframe id="oc-frame" src="/opencode/" title="OpenCode" allow="clipboard-read; clipboard-write"></iframe>
+</div>
+{{end}}
