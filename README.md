@@ -58,10 +58,12 @@
 - **SQLite Persistence**: Embedded pure Go database (`modernc.org/sqlite`).
 
 ### 2. `usb-server` (Admin Portal & Hardware Suite)
-- **🛠️ Tools & Reverse SSH Host Bridge (`/tools`)**: Auto-detects reverse SSH tunnels, generates copyable 1-liner host connection commands (`ssh -R 22222:localhost:22`), manages public SSH keys, and provides a host connection tester.
 - **⚡ PiScope Digital Logic Analyzer**: 60 FPS HTML5 Canvas logic scope with timebase scaling, dual measurement cursors (Cursor A/B with real-time $\Delta t$ microsecond readout & frequency counter), I2C/UART protocol decoders, mouse wheel zooming, and VCD/CSV capture exports.
+- **🛠️ Tools & Reverse SSH Host Bridge (`/tools`)**: Auto-detects reverse SSH tunnels, generates copyable 1-liner host connection commands (`ssh -R 22222:localhost:22`), manages public SSH keys, and provides a host connection tester.
 - **🔌 Active Hardware Peripheral Control**: Detects and toggles SPI, I2C, UART Serial, 1-Wire, Hardware Shutdown Button, Fan Control, PWM Audio, and USB Gadget overlays (`raspi-config nonint`).
 - **📶 WiFi & Web Terminal**: Interactive web terminal shell (PTY websocket) and network manager.
+
+![PiScope Digital Logic Analyzer](assets/piscope-preview.jpg)
 
 ---
 
