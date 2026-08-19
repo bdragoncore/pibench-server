@@ -35,6 +35,33 @@
     let cursorA_Ms = null;
     let cursorB_Ms = null;
 
+    let m5adcVoltage = 1.65;
+    let m5adcConnected = false;
+
+    function fetchM5ADC() {
+      fetch('/api/m5stickc/adc')
+        .then(r => r.json())
+        .then(d => {
+          const badge = document.getElementById('m5stickc-status');
+          if (d && d.connected) {
+            m5adcConnected = true;
+            m5adcVoltage = d.voltage_v || (d.voltage_mv / 1000.0) || 0;
+            if (badge) {
+              badge.textContent = `⚡ M5StickC G36 ADC: ${m5adcVoltage.toFixed(3)} V`;
+              badge.style.background = 'rgba(255, 215, 0, 0.18)';
+              badge.style.color = '#ffd700';
+              badge.style.borderColor = 'rgba(255, 215, 0, 0.4)';
+            }
+          } else if (badge) {
+            badge.textContent = `⚡ M5StickC G36 ADC (Disconnected)`;
+            badge.style.background = 'rgba(255, 255, 255, 0.05)';
+            badge.style.color = '#8080a0';
+          }
+        })
+        .catch(() => {});
+    }
+    setInterval(fetchM5ADC, 250);
+
     const activePins = [2, 3, 4, 14, 15, 17, 18, 22, 23, 24, 25, 27];
     const selectedPins = new Set([2, 3, 4, 14, 15, 17, 18, 27]);
 

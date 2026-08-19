@@ -16,6 +16,7 @@
 
 1. **`opencode-tiny/`**: Lightweight Go agent server powering the AI Chat & Tool Calling engine.
 2. **`usb-server/`**: HTMX + Go web admin portal featuring the **PiScope** 60 FPS logic analyzer, **GPIO Hardware Manager**, **WiFi Control**, and **Web Terminal**.
+3. **`m5-stick-c/`**: ESP32 hardware companion suite providing MicroPython firmware, automated flashing scripts (`uv run flash_m5stickc.py`), analog voltage sampling (`G36` ADC1_CH0 0.0V–3.3V), and ST7735 color LCD status display rendering.
 
 ---
 
@@ -31,16 +32,15 @@
                     │  usb-server (Go + HTMX Admin Portal :8080)   │
                     ├──────────────┬───────────────┬───────────────┤
                     │  PiScope     │  GPIO Control │  Web Terminal │
-                    └──────┬───────┴───────────────┴───────────────┘
-                           │ Reverse Proxy (/opencode)
+                    └──────┬───────┴───────┬───────┴───────────────┘
+                           │               │ UART / G36 ADC
+                           ▼               ▼
+                    ┌──────────────┐ ┌─────────────────────────────┐
+                    │opencode-tiny │ │ M5StickC (ESP32 Companion)  │
+                    │  (:3457)     │ │ - G36 Analog Sampling       │
+                    └──────┬───────┘ │ - ST7735 LCD Status Display │
+                           │         └─────────────────────────────┘
                            ▼
-                    ┌──────────────────────────────────────────────┐
-                    │  opencode-tiny (Go AI Agent Server :3457)    │
-                    ├──────────────────────────────┬───────────────┤
-                    │ OpenAI SSE Streaming Client  │ Tool Engine   │
-                    └──────────────┬───────────────┴───────────────┘
-                                   │ /v1/chat/completions
-                                   ▼
                     ┌──────────────────────────────────────────────┐
                     │ OpenAI Gateway / Local LLM (OpenMind :5000)  │
                     └──────────────────────────────────────────────┘
@@ -53,13 +53,13 @@
   - `bash`: Shell execution with timeout safety.
   - `read` / `write` / `edit`: Line-buffered reading, atomic writing, and chunk patch editing.
   - `gpio_control`: AI pin status reading, digital I/O writing, PWM, and peripheral overlay toggling.
-  - `host_shell`: Direct shell command execution on any connected host machine via Reverse SSH bridge (`127.0.0.1:22222`), allowing the AI to access live booted host PCs/workstations zero-config.
+  - `host_shell`: Direct shell command execution on any connected host machine (Linux, macOS, Windows PowerShell/CMD, or FreeBSD/BSD) via Reverse SSH bridge (`127.0.0.1:22222`), allowing the AI to access live booted host PCs/workstations zero-config.
   - `superuser_access`: Elevated privilege authentication & password inbox.
 - **SQLite Persistence**: Embedded pure Go database (`modernc.org/sqlite`).
 
 ### 2. `usb-server` (Admin Portal & Hardware Suite)
 - **⚡ PiScope Digital Logic Analyzer**: 60 FPS HTML5 Canvas logic scope with timebase scaling, dual measurement cursors (Cursor A/B with real-time $\Delta t$ microsecond readout & frequency counter), I2C/UART protocol decoders, mouse wheel zooming, and VCD/CSV capture exports.
-- **🛠️ Tools & Reverse SSH Host Bridge (`/tools`)**: Auto-detects reverse SSH tunnels, generates copyable 1-liner host connection commands (`ssh -R 22222:localhost:22`), manages public SSH keys, and provides a host connection tester.
+- **🛠️ Tools & Reverse SSH Host Bridge (`/tools`)**: Auto-detects reverse SSH tunnels, generates copyable 1-liner host connection commands for **Linux**, **macOS**, **Windows (`winget` / PowerShell OpenSSH)**, and **FreeBSD (`pkg`)** (`ssh -R 22222:localhost:22`), manages public SSH keys, and provides host connection installation helpers.
 - **🔌 Active Hardware Peripheral Control**: Detects and toggles SPI, I2C, UART Serial, 1-Wire, Hardware Shutdown Button, Fan Control, PWM Audio, and USB Gadget overlays (`raspi-config nonint`).
 - **📶 WiFi & Web Terminal**: Interactive web terminal shell (PTY websocket) and network manager.
 

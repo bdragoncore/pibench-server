@@ -8,22 +8,38 @@
 </div>
 
 <div class="tunnel-body">
-  <p>Run one of the following commands from any host machine (live-boot PC, laptop, Mac, workstation) to establish a reverse SSH tunnel to this Pi Zero:</p>
+  <p>Run one of the following commands from any host machine (Linux, macOS, Windows, or FreeBSD) to establish a reverse SSH tunnel to this Pi Zero:</p>
 
   <div class="cmd-option-group">
     <div class="cmd-header">
-      <span>🐧 Linux / 🍎 macOS Host Command:</span>
-      <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('cmd-linux').innerText)">📋 Copy Command</button>
+      <span>🐧 Linux Host Command:</span>
+      <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('cmd-linux').innerText)">📋 Copy</button>
     </div>
     <pre class="cmd-code"><code id="cmd-linux">ssh -N -R {{.Port}}:localhost:22 -o ServerAliveInterval=15 -o StrictHostKeyChecking=no {{.User}}@{{.PiIP}}</code></pre>
   </div>
 
   <div class="cmd-option-group">
     <div class="cmd-header">
-      <span>🪟 Windows PowerShell Host Command:</span>
-      <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('cmd-win').innerText)">📋 Copy Command</button>
+      <span>🍎 macOS (Mac) Host Command:</span>
+      <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('cmd-macos').innerText)">📋 Copy</button>
+    </div>
+    <pre class="cmd-code"><code id="cmd-macos">ssh -N -R {{.Port}}:localhost:22 -o ServerAliveInterval=15 -o StrictHostKeyChecking=no {{.User}}@{{.PiIP}}</code></pre>
+  </div>
+
+  <div class="cmd-option-group">
+    <div class="cmd-header">
+      <span>🪟 Windows (PowerShell / Command Prompt) Host Command:</span>
+      <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('cmd-win').innerText)">📋 Copy</button>
     </div>
     <pre class="cmd-code"><code id="cmd-win">ssh -N -R {{.Port}}:localhost:22 -o ServerAliveInterval=15 -o StrictHostKeyChecking=no {{.User}}@{{.PiIP}}</code></pre>
+  </div>
+
+  <div class="cmd-option-group">
+    <div class="cmd-header">
+      <span>😈 FreeBSD / OpenBSD / NetBSD Host Command:</span>
+      <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('cmd-bsd').innerText)">📋 Copy</button>
+    </div>
+    <pre class="cmd-code"><code id="cmd-bsd">ssh -N -R {{.Port}}:localhost:22 -o ServerAliveInterval=15 -o StrictHostKeyChecking=no {{.User}}@{{.PiIP}}</code></pre>
   </div>
 
   {{if .IsActive}}

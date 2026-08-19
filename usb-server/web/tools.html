@@ -19,8 +19,49 @@
     </div>
 
     <div class="instructions">
-      <h4>Quick One-Liner Host Setup (Run on Host Machine):</h4>
-      <pre class="cmd-snippet"><code>curl -s http://{{.PiIP}}:8080/tools/pubkey >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys</code></pre>
+      <h4>Quick One-Liner Key Installers:</h4>
+      
+      <div class="cmd-option-group">
+        <div class="cmd-header">
+          <span>🐧 Linux / 🍎 macOS / 😈 FreeBSD (Bash / Zsh):</span>
+          <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('inst-posix').innerText)">📋 Copy</button>
+        </div>
+        <pre class="cmd-code"><code id="inst-posix">mkdir -p ~/.ssh && curl -s http://{{.PiIP}}:8080/tools/pubkey >> ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys</code></pre>
+      </div>
+
+      <div class="cmd-option-group">
+        <div class="cmd-header">
+          <span>🪟 Windows (PowerShell - OpenSSH Key Setup):</span>
+          <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('inst-win').innerText)">📋 Copy</button>
+        </div>
+        <pre class="cmd-code"><code id="inst-win">if (!(Test-Path $HOME\.ssh)) { New-Item -Path $HOME\.ssh -ItemType Directory }; (Invoke-WebRequest -UseBasicParsing http://{{.PiIP}}:8080/tools/pubkey).Content | Out-File -FilePath $HOME\.ssh\authorized_keys -Encoding utf8 -Append</code></pre>
+      </div>
+
+      <h4 style="margin-top: 1.2rem;">📦 Need to Install SSH Client/Server on Host?</h4>
+
+      <div class="cmd-option-group">
+        <div class="cmd-header">
+          <span>🪟 Windows Package Manager (winget / PowerShell Admin):</span>
+          <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('install-win').innerText)">📋 Copy</button>
+        </div>
+        <pre class="cmd-code"><code id="install-win">winget install Microsoft.OpenSSH.Beta # Or in Admin PowerShell: Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0</code></pre>
+      </div>
+
+      <div class="cmd-option-group">
+        <div class="cmd-header">
+          <span>🍎 macOS (Homebrew / System):</span>
+          <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('install-mac').innerText)">📋 Copy</button>
+        </div>
+        <pre class="cmd-code"><code id="install-mac">brew install openssh # Or turn on Remote Login in System Settings -> Sharing</code></pre>
+      </div>
+
+      <div class="cmd-option-group">
+        <div class="cmd-header">
+          <span>😈 FreeBSD / OpenBSD / NetBSD:</span>
+          <button class="btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('install-bsd').innerText)">📋 Copy</button>
+        </div>
+        <pre class="cmd-code"><code id="install-bsd">pkg install openssh # sysrc sshd_enable="YES" && service sshd start</code></pre>
+      </div>
     </div>
   </div>
 </div>

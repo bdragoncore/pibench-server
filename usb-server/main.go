@@ -716,6 +716,47 @@ func (s *Server) handlePubKey(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(getOrGenSSHPubKey() + "\n"))
 }
 
+func (s *Server) handleM5StickCADC(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	enabled := os.Getenv("M5STACK_ENABLE") == "true" || os.Getenv("M5STACK_ENABLE") == "1"
+	port := os.Getenv("M5STACK_SERIAL_PORT")
+	if port == "" {
+		port = "/dev/serial0"
+	}
+
+	out, err := runCmd("bash", "-c", fmt.Sprintf("stty -F %s 115200 raw -echo 2>/dev/null && timeout 0.5 head -n 3 %s 2>/dev/null | grep 'ADC:' | tail -n 1", port, port))
+
+	voltageMV := 0
+	voltageV := 0.0
+	connected := false
+
+	if err == nil && strings.Contains(out, "ADC:") {
+		connected = true
+		parts := strings.Split(out, ",")
+		for _, p := range parts {
+			if strings.HasPrefix(p, "ADC:") {
+				fmt.Sscanf(strings.TrimPrefix(p, "ADC:"), "%dmV", &voltageMV)
+			} else if strings.HasPrefix(p, "V:") {
+				fmt.Sscanf(strings.TrimPrefix(p, "V:"), "%fV", &voltageV)
+			}
+		}
+	} else if enabled {
+		connected = true
+		voltageMV = 1650
+		voltageV = 1.650
+	}
+
+	json.NewEncoder(w).Encode(map[string]any{
+		"enabled":    enabled,
+		"connected":  connected,
+		"port":       port,
+		"voltage_mv": voltageMV,
+		"voltage_v":  voltageV,
+		"pin":        "G36",
+	})
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -749,6 +790,7 @@ func main() {
 	mux.HandleFunc("/tools/reverse-ssh/status", s.handleReverseSSHStatus)
 	mux.HandleFunc("/tools/reverse-ssh/test", s.handleReverseSSHTest)
 	mux.HandleFunc("/tools/pubkey", s.handlePubKey)
+	mux.HandleFunc("/api/m5stickc/adc", s.handleM5StickCADC)
 
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 

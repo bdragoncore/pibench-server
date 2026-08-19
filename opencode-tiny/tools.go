@@ -140,11 +140,11 @@ var toolSpecs = []ToolSpec{
 		Type: "function",
 		Function: ToolFunction{
 			Name:        "host_shell",
-			Description: "Execute a shell command directly on the host machine connected via the Reverse SSH tunnel (127.0.0.1:22222). Use this to access the host system without needing host IP or credentials.",
+			Description: "Execute a shell command directly on any host machine (Linux, macOS, Windows PowerShell/CMD, or FreeBSD/BSD) connected via the Reverse SSH tunnel (127.0.0.1:22222). Use this to access the host system without needing host IP or credentials.",
 			Parameters: json.RawMessage(`{
 				"type": "object",
 				"properties": {
-					"command": {"type": "string", "description": "The shell command to execute on the host machine"},
+					"command": {"type": "string", "description": "The shell command to execute on the host machine (bash, zsh, powershell, or sh depending on host OS)"},
 					"user": {"type": "string", "description": "Optional host username (defaults to active user)"},
 					"timeout_seconds": {"type": "integer", "description": "Optional timeout, default 60, max 180"}
 				},
