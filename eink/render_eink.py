@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 from epd2in13_v4 import EPD2In13V4
 
 STATE_FILE = "/tmp/eink_page.state"
-TOTAL_PAGES = 3
+TOTAL_PAGES = 2
 
 def get_ip_address(ifname):
     """Fetch IP address for specific network interface."""
@@ -56,33 +56,6 @@ def check_overlay(name):
     except Exception:
         return "DISABLED"
 
-def get_recent_boot_logs():
-    """Fetch recent clean boot log lines from dmesg or journalctl."""
-    logs = []
-    try:
-        out = subprocess.check_output(["dmesg", "-t", "-l", "notice,warn,err,info"], stderr=subprocess.DEVNULL).decode('utf-8', 'ignore')
-        lines = [l.strip() for l in out.split('\n') if l.strip() and "audit" not in l]
-        logs = lines[-5:]
-    except Exception:
-        pass
-
-    if not logs:
-        try:
-            out = subprocess.check_output(["journalctl", "-b", "-n", "5", "--no-pager", "-o", "cat"], stderr=subprocess.DEVNULL).decode('utf-8', 'ignore')
-            logs = [l.strip() for l in out.split('\n') if l.strip()][:5]
-        except Exception:
-            pass
-
-    if not logs:
-        logs = [
-            "• [OK] Mounted /boot filesystem",
-            "• [OK] Started USB Gadget Ethernet",
-            "• [OK] Reserved SPI0 Bus for E-Ink",
-            "• [OK] Started OpenCode AI Agent",
-            "• [OK] System Multi-User Target Ready"
-        ]
-    return logs
-
 def get_next_page():
     try:
         if os.path.exists(STATE_FILE):
@@ -106,16 +79,16 @@ def render_page1(draw, width, height, fonts, msg=None):
 
     # Header Banner
     draw.rectangle([(0, 0), (width, 22)], fill=0)
-    draw.text((8, 3), "⚡ PIBENCH TELEMETRY   [1/3]", font=font_title, fill=255)
+    draw.text((8, 3), f"⚡ PIBENCH TELEMETRY   [1/{TOTAL_PAGES}]", font=font_title, fill=255)
     
     usb_ip = get_usb_ip()
     wifi_ip = get_wifi_ip()
     ts_ip = get_tailscale_ip()
 
     if msg:
-        # Custom Message Box
+        # Custom Message Box (e.g. for boot splash text)
         draw.rectangle([(6, 26), (width - 6, 75)], outline=0, width=2)
-        draw.text((12, 30), "TEST MESSAGE:", font=font_small, fill=0)
+        draw.text((12, 30), "STATUS MESSAGE:", font=font_small, fill=0)
         draw.text((12, 45), msg[:28], font=font_header, fill=0)
         
         draw.text((8, 80), f"USB IP : {usb_ip}", font=font_body, fill=0)
@@ -141,7 +114,7 @@ def render_page2(draw, width, height, fonts):
 
     # Header Banner
     draw.rectangle([(0, 0), (width, 22)], fill=0)
-    draw.text((8, 3), "⚡ GPIO CONFIGURATION  [2/3]", font=font_title, fill=255)
+    draw.text((8, 3), f"⚡ GPIO CONFIGURATION  [2/{TOTAL_PAGES}]", font=font_title, fill=255)
 
     spi_st = check_overlay("spi")
     i2c_st = check_overlay("i2c")
@@ -164,27 +137,6 @@ def render_page2(draw, width, height, fonts):
     now_str = datetime.now().strftime("%H:%M:%S")
     draw.line([(0, height - 14), (width, height - 14)], fill=0, width=1)
     draw.text((8, height - 12), f"Status: GPIO ACTIVE | Refreshed: {now_str}", font=font_small, fill=0)
-
-def render_page3(draw, width, height, fonts):
-    font_title, font_header, font_body, font_small = fonts
-
-    # Header Banner
-    draw.rectangle([(0, 0), (width, 22)], fill=0)
-    draw.text((8, 3), "⚡ BOOT LOG MESSAGES   [3/3]", font=font_title, fill=255)
-
-    logs = get_recent_boot_logs()
-
-    # Log Lines Box
-    draw.rectangle([(6, 26), (width - 6, 104)], outline=0, width=1)
-    y_pos = 29
-    for l in logs[:5]:
-        clean_l = l[:38] # Truncate long lines to fit 250px width
-        draw.text((10, y_pos), clean_l, font=font_small, fill=0)
-        y_pos += 14
-
-    now_str = datetime.now().strftime("%H:%M:%S")
-    draw.line([(0, height - 14), (width, height - 14)], fill=0, width=1)
-    draw.text((8, height - 12), f"Status: LOGS OK | Refreshed: {now_str}", font=font_small, fill=0)
 
 def render_eink(page=None, msg=None, rotate_deg=180):
     if page is None:
@@ -212,9 +164,7 @@ def render_eink(page=None, msg=None, rotate_deg=180):
 
     fonts = (font_title, font_header, font_body, font_small)
 
-    if page == 3:
-        render_page3(draw, width, height, fonts)
-    elif page == 2:
+    if page == 2:
         render_page2(draw, width, height, fonts)
     else:
         render_page1(draw, width, height, fonts, msg=msg)
