@@ -74,47 +74,100 @@ def get_next_page():
         pass
     return next_p
 
-def render_page1(draw, width, height, fonts, msg=None):
+def clear_display_white(rotate_deg=180):
+    print("Clearing 2.13-inch E-Ink Display to pure white...")
+    epd = EPD2In13V4()
+    if epd.init() != 0:
+        print("Error: E-Ink initialization failed.")
+        sys.exit(1)
+
+    width = 250
+    height = 122
+    image = Image.new('1', (width, height), 255) # Pure white
+    buf = epd.get_buffer(image)
+    epd.display(buf)
+    epd.sleep()
+    epd.close()
+    print("E-Ink Display cleared to pure white successfully!")
+
+def render_boot_splash(msg=None, rotate_deg=180):
+    """Render banner-free space-saving tiny text boot splash on pure white canvas."""
+    print("Initializing 2.13-inch E-Ink Boot Splash...")
+    epd = EPD2In13V4()
+    if epd.init() != 0:
+        print("Error: E-Ink initialization failed.")
+        sys.exit(1)
+
+    width = 250
+    height = 122
+    # 1. Pure white background canvas (clears screen)
+    image = Image.new('1', (width, height), 255)
+    draw = ImageDraw.Draw(image)
+
+    try:
+        font_mono = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf", 11)
+        font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 9)
+    except Exception:
+        font_mono = font_small = ImageFont.load_default()
+
+    usb_ip = get_usb_ip()
+    wifi_ip = get_wifi_ip()
+    hostname = get_hostname()
+    ts_ip = get_tailscale_ip()
+
+    # 2. Render tiny text (NO BANNERS, NO BOXES)
+    y = 4
+    status_title = msg if msg else "SYSTEM BOOTING..."
+    draw.text((4, y), f">>> {status_title}", font=font_mono, fill=0)
+    y += 18
+    draw.line([(4, y), (width - 4, y)], fill=0, width=1)
+    y += 6
+
+    draw.text((4, y), f"USB GADGET IP: http://{usb_ip}:8080", font=font_small, fill=0)
+    y += 14
+    draw.text((4, y), f"Wi-Fi IP     : {wifi_ip}", font=font_small, fill=0)
+    y += 14
+    if ts_ip:
+        draw.text((4, y), f"Tailscale IP : {ts_ip}", font=font_small, fill=0)
+        y += 14
+    draw.text((4, y), f"Host Name    : {hostname}", font=font_small, fill=0)
+
+    now_str = datetime.now().strftime("%H:%M:%S")
+    draw.line([(0, height - 14), (width, height - 14)], fill=0, width=1)
+    draw.text((4, height - 12), f"BOOT ACTIVE | Refreshed: {now_str}", font=font_small, fill=0)
+
+    if rotate_deg != 0:
+        image = image.rotate(rotate_deg)
+
+    buf = epd.get_buffer(image)
+    epd.display(buf)
+    epd.sleep()
+    epd.close()
+    print("E-Ink Boot Splash rendered successfully!")
+
+def render_page1(draw, width, height, fonts):
     font_title, font_header, font_body, font_small = fonts
     usb_ip = get_usb_ip()
     wifi_ip = get_wifi_ip()
     ts_ip = get_tailscale_ip()
 
-    if msg:
-        # Banner-Free Compact Tiny Text Layout for Boot / Messages (Saves space)
-        draw.text((4, 4), "SYSTEM STATUS / BOOT MSG:", font=font_small, fill=0)
-        draw.text((4, 18), msg[:36], font=font_body, fill=0)
-        
-        draw.line([(4, 34), (width - 4, 34)], fill=0, width=1)
-        
-        draw.text((4, 40), f"USB GADGET IP: http://{usb_ip}:8080", font=font_small, fill=0)
-        draw.text((4, 54), f"Wi-Fi IP     : {wifi_ip}", font=font_small, fill=0)
-        if ts_ip:
-            draw.text((4, 68), f"Tailscale IP : {ts_ip}", font=font_small, fill=0)
-        else:
-            draw.text((4, 68), f"Host Name    : {get_hostname()}", font=font_small, fill=0)
+    # Standard Page 1: Telemetry & USB IP Screen
+    draw.rectangle([(0, 0), (width, 22)], fill=0)
+    draw.text((8, 3), f"⚡ PIBENCH TELEMETRY   [1/{TOTAL_PAGES}]", font=font_title, fill=255)
 
-        now_str = datetime.now().strftime("%H:%M:%S")
-        draw.line([(0, height - 14), (width, height - 14)], fill=0, width=1)
-        draw.text((4, height - 12), f"BOOT MSG ACTIVE | Refreshed: {now_str}", font=font_small, fill=0)
+    draw.rectangle([(6, 28), (width - 6, 60)], outline=0, width=2)
+    draw.text((12, 32), "USB GADGET IP:", font=font_small, fill=0)
+    draw.text((12, 43), f"http://{usb_ip}:8080", font=font_header, fill=0)
+
+    draw.text((8, 66), f"Wi-Fi IP : {wifi_ip}", font=font_body, fill=0)
+    if ts_ip:
+        draw.text((8, 81), f"Tailscale: {ts_ip}", font=font_body, fill=0)
     else:
-        # Standard Page 1: Telemetry & USB IP Screen (with Banner)
-        draw.rectangle([(0, 0), (width, 22)], fill=0)
-        draw.text((8, 3), f"⚡ PIBENCH TELEMETRY   [1/{TOTAL_PAGES}]", font=font_title, fill=255)
+        draw.text((8, 81), f"Host     : {get_hostname()}", font=font_body, fill=0)
 
-        draw.rectangle([(6, 28), (width - 6, 60)], outline=0, width=2)
-        draw.text((12, 32), "USB GADGET IP:", font=font_small, fill=0)
-        draw.text((12, 43), f"http://{usb_ip}:8080", font=font_header, fill=0)
-
-        draw.text((8, 66), f"Wi-Fi IP : {wifi_ip}", font=font_body, fill=0)
-        if ts_ip:
-            draw.text((8, 81), f"Tailscale: {ts_ip}", font=font_body, fill=0)
-        else:
-            draw.text((8, 81), f"Host     : {get_hostname()}", font=font_body, fill=0)
-
-        now_str = datetime.now().strftime("%H:%M:%S")
-        draw.line([(0, height - 14), (width, height - 14)], fill=0, width=1)
-        draw.text((8, height - 12), f"Status: ONLINE | Refreshed: {now_str}", font=font_small, fill=0)
+    now_str = datetime.now().strftime("%H:%M:%S")
+    draw.line([(0, height - 14), (width, height - 14)], fill=0, width=1)
+    draw.text((8, height - 12), f"Status: ONLINE | Refreshed: {now_str}", font=font_small, fill=0)
 
 def render_page2(draw, width, height, fonts):
     font_title, font_header, font_body, font_small = fonts
@@ -145,7 +198,7 @@ def render_page2(draw, width, height, fonts):
     draw.line([(0, height - 14), (width, height - 14)], fill=0, width=1)
     draw.text((8, height - 12), f"Status: GPIO ACTIVE | Refreshed: {now_str}", font=font_small, fill=0)
 
-def render_eink(page=None, msg=None, rotate_deg=180):
+def render_eink(page=None, rotate_deg=180):
     if page is None:
         page = get_next_page()
 
@@ -158,7 +211,6 @@ def render_eink(page=None, msg=None, rotate_deg=180):
 
     width = 250
     height = 122
-    # Create fresh pure-white canvas to completely clear any previous display contents
     image = Image.new('1', (width, height), 255) # 255 = Clear White
     draw = ImageDraw.Draw(image)
 
@@ -172,10 +224,10 @@ def render_eink(page=None, msg=None, rotate_deg=180):
 
     fonts = (font_title, font_header, font_body, font_small)
 
-    if page == 2 and not msg:
+    if page == 2:
         render_page2(draw, width, height, fonts)
     else:
-        render_page1(draw, width, height, fonts, msg=msg)
+        render_page1(draw, width, height, fonts)
 
     if rotate_deg != 0:
         image = image.rotate(rotate_deg)
@@ -190,18 +242,25 @@ def render_eink(page=None, msg=None, rotate_deg=180):
     print(f"E-Ink Display refresh completed successfully for Page {page}!")
 
 if __name__ == "__main__":
+    rot = int(os.getenv("EINK_ROTATION", "180"))
+
+    if "--clear" in sys.argv:
+        clear_display_white(rotate_deg=rot)
+        sys.exit(0)
+
+    if "--boot" in sys.argv:
+        boot_msg = None
+        idx = sys.argv.index("--boot")
+        if idx + 1 < len(sys.argv) and not sys.argv[idx + 1].startswith("-"):
+            boot_msg = sys.argv[idx + 1]
+        render_boot_splash(msg=boot_msg, rotate_deg=rot)
+        sys.exit(0)
+
     target_page = None
-    msg_arg = None
-    
     args = sys.argv[1:]
     if "--page" in args:
         idx = args.index("--page")
         if idx + 1 < len(args):
             target_page = int(args[idx + 1])
-            args = args[:idx] + args[idx+2:]
-            
-    if len(args) > 0:
-        msg_arg = " ".join(args)
 
-    rot = int(os.getenv("EINK_ROTATION", "180"))
-    render_eink(page=target_page, msg=msg_arg, rotate_deg=rot)
+    render_eink(page=target_page, rotate_deg=rot)

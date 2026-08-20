@@ -1,3 +1,4 @@
+import os
 import time
 import spidev
 import gpiod
@@ -24,7 +25,8 @@ class EPD2In13V4:
         self.spi.max_speed_hz = 2000000
         self.spi.mode = 0b00
 
-        # GPIO Init via gpiod v2
+        self.lines = None
+        # GPIO Init via gpiod v2 with sysfs fallback
         try:
             self.lines = gpiod.request_lines(
                 "/dev/gpiochip0",
@@ -35,20 +37,45 @@ class EPD2In13V4:
                     BUSY_PIN: gpiod.LineSettings(direction=Direction.INPUT),
                 }
             )
-        except Exception as e:
-            print("gpiod v2 line request note:", e)
-            self.lines = None
+        except Exception:
+            self.setup_sysfs_gpio()
+
+    def setup_sysfs_gpio(self):
+        for p, direction in [(RST_PIN, "out"), (DC_PIN, "out"), (BUSY_PIN, "in")]:
+            p_dir = f"/sys/class/gpio/gpio{p}"
+            if not os.path.exists(p_dir):
+                try:
+                    with open("/sys/class/gpio/export", "w") as f:
+                        f.write(str(p))
+                except Exception:
+                    pass
+            try:
+                with open(f"{p_dir}/direction", "w") as f:
+                    f.write(direction)
+            except Exception:
+                pass
 
     def digital_write(self, pin, val):
         if self.lines:
             v = Value.ACTIVE if val else Value.INACTIVE
             self.lines.set_value(pin, v)
+        else:
+            try:
+                with open(f"/sys/class/gpio/gpio{pin}/value", "w") as f:
+                    f.write("1" if val else "0")
+            except Exception:
+                pass
 
     def digital_read(self, pin):
         if self.lines:
             res = self.lines.get_value(pin)
             return 1 if res == Value.ACTIVE else 0
-        return 0
+        else:
+            try:
+                with open(f"/sys/class/gpio/gpio{pin}/value", "r") as f:
+                    return int(f.read().strip())
+            except Exception:
+                return 0
 
     def reset(self):
         self.digital_write(RST_PIN, 1)
