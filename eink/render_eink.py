@@ -76,25 +76,32 @@ def get_next_page():
 
 def render_page1(draw, width, height, fonts, msg=None):
     font_title, font_header, font_body, font_small = fonts
-
-    # Header Banner
-    draw.rectangle([(0, 0), (width, 22)], fill=0)
-    draw.text((8, 3), f"⚡ PIBENCH TELEMETRY   [1/{TOTAL_PAGES}]", font=font_title, fill=255)
-    
     usb_ip = get_usb_ip()
     wifi_ip = get_wifi_ip()
     ts_ip = get_tailscale_ip()
 
     if msg:
-        # Custom Message Box (e.g. for boot splash text)
-        draw.rectangle([(6, 26), (width - 6, 75)], outline=0, width=2)
-        draw.text((12, 30), "STATUS MESSAGE:", font=font_small, fill=0)
-        draw.text((12, 45), msg[:28], font=font_header, fill=0)
+        # Banner-Free Compact Tiny Text Layout for Boot / Messages (Saves space)
+        draw.text((4, 4), "SYSTEM STATUS / BOOT MSG:", font=font_small, fill=0)
+        draw.text((4, 18), msg[:36], font=font_body, fill=0)
         
-        draw.text((8, 80), f"USB IP : {usb_ip}", font=font_body, fill=0)
-        draw.text((8, 95), f"Wi-Fi  : {wifi_ip}", font=font_small, fill=0)
+        draw.line([(4, 34), (width - 4, 34)], fill=0, width=1)
+        
+        draw.text((4, 40), f"USB GADGET IP: http://{usb_ip}:8080", font=font_small, fill=0)
+        draw.text((4, 54), f"Wi-Fi IP     : {wifi_ip}", font=font_small, fill=0)
+        if ts_ip:
+            draw.text((4, 68), f"Tailscale IP : {ts_ip}", font=font_small, fill=0)
+        else:
+            draw.text((4, 68), f"Host Name    : {get_hostname()}", font=font_small, fill=0)
+
+        now_str = datetime.now().strftime("%H:%M:%S")
+        draw.line([(0, height - 14), (width, height - 14)], fill=0, width=1)
+        draw.text((4, height - 12), f"BOOT MSG ACTIVE | Refreshed: {now_str}", font=font_small, fill=0)
     else:
-        # USB IP Box
+        # Standard Page 1: Telemetry & USB IP Screen (with Banner)
+        draw.rectangle([(0, 0), (width, 22)], fill=0)
+        draw.text((8, 3), f"⚡ PIBENCH TELEMETRY   [1/{TOTAL_PAGES}]", font=font_title, fill=255)
+
         draw.rectangle([(6, 28), (width - 6, 60)], outline=0, width=2)
         draw.text((12, 32), "USB GADGET IP:", font=font_small, fill=0)
         draw.text((12, 43), f"http://{usb_ip}:8080", font=font_header, fill=0)
@@ -105,9 +112,9 @@ def render_page1(draw, width, height, fonts, msg=None):
         else:
             draw.text((8, 81), f"Host     : {get_hostname()}", font=font_body, fill=0)
 
-    now_str = datetime.now().strftime("%H:%M:%S")
-    draw.line([(0, height - 14), (width, height - 14)], fill=0, width=1)
-    draw.text((8, height - 12), f"Status: ONLINE | Refreshed: {now_str}", font=font_small, fill=0)
+        now_str = datetime.now().strftime("%H:%M:%S")
+        draw.line([(0, height - 14), (width, height - 14)], fill=0, width=1)
+        draw.text((8, height - 12), f"Status: ONLINE | Refreshed: {now_str}", font=font_small, fill=0)
 
 def render_page2(draw, width, height, fonts):
     font_title, font_header, font_body, font_small = fonts
@@ -151,7 +158,8 @@ def render_eink(page=None, msg=None, rotate_deg=180):
 
     width = 250
     height = 122
-    image = Image.new('1', (width, height), 255) # 255 = White
+    # Create fresh pure-white canvas to completely clear any previous display contents
+    image = Image.new('1', (width, height), 255) # 255 = Clear White
     draw = ImageDraw.Draw(image)
 
     try:
@@ -164,7 +172,7 @@ def render_eink(page=None, msg=None, rotate_deg=180):
 
     fonts = (font_title, font_header, font_body, font_small)
 
-    if page == 2:
+    if page == 2 and not msg:
         render_page2(draw, width, height, fonts)
     else:
         render_page1(draw, width, height, fonts, msg=msg)
