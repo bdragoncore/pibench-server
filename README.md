@@ -130,6 +130,7 @@ Access the admin portal at **`http://<host>:8080/`**.
 | `USB_SERVER_PORT` | `8080` | HTTP listening port for `usb-server` admin portal |
 | `OPENCODE_TINY_MODEL` | `zen-deepseek-v4-flash-free` | Default active LLM model ID |
 | `OPENCODE_TINY_DB` | `~/.local/share/opencode-tiny/opencode-tiny.db` | SQLite session database path |
+| `EINK_DISPLAY` | `0` | Enable LAFVIN / Waveshare 2.13" E-Paper display HAT (`1` to enable, reserves SPI bus & prints USB IP) |
 
 ---
 

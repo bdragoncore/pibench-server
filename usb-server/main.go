@@ -757,6 +757,70 @@ func (s *Server) handleM5StickCADC(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) isEInkEnabled() bool {
+	envVal := strings.ToLower(os.Getenv("EINK_DISPLAY"))
+	return envVal == "1" || envVal == "true" || envVal == "yes"
+}
+
+func (s *Server) initEInk() {
+	if !s.isEInkEnabled() {
+		return
+	}
+	log.Printf("E-Ink display enabled (EINK_DISPLAY=1). Reserving SPI bus for 2.13-inch e-Paper HAT...")
+	
+	// Enable SPI via raspi-config nonint if /dev/spidev0.0 does not exist
+	if _, err := os.Stat("/dev/spidev0.0"); os.IsNotExist(err) {
+		runCmd("sudo", "-n", "raspi-config", "nonint", "do_spi", "0")
+	}
+
+	// Trigger initial E-Ink display render asynchronously and start 20s auto-flip ticker
+	go func() {
+		time.Sleep(2 * time.Second)
+		s.refreshEInkDisplay("")
+		
+		ticker := time.NewTicker(20 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			s.refreshEInkDisplay("")
+		}
+	}()
+}
+
+func (s *Server) refreshEInkDisplay(page string) (string, error) {
+	if !s.isEInkEnabled() {
+		return "E-Ink display is disabled (set EINK_DISPLAY=1 in .env to enable).", nil
+	}
+
+	scriptPath := "/home/bperris/base/dev/pibench-server/eink/render_eink.py"
+	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+		scriptPath = "eink/render_eink.py"
+	}
+
+	args := []string{scriptPath}
+	if page != "" {
+		args = append(args, "--page", page)
+	}
+
+	out, err := runCmd("python3", args...)
+	if err != nil {
+		log.Printf("E-Ink refresh error: %v (%s)", err, out)
+		return fmt.Sprintf("E-Ink refresh failed: %v\n%s", err, out), err
+	}
+	log.Printf("E-Ink refresh success: %s", out)
+	return out, nil
+}
+
+func (s *Server) handleEInkRefresh(w http.ResponseWriter, r *http.Request) {
+	page := r.URL.Query().Get("page")
+	out, err := s.refreshEInkDisplay(page)
+	if err != nil {
+		http.Error(w, out, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte(out))
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -769,6 +833,8 @@ func main() {
 	ocProxy = httputil.NewSingleHostReverseProxy(target)
 
 	s := &Server{}
+	s.initEInk()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleRoot)
 	mux.HandleFunc("/opencode", s.handleOpenCode)
@@ -791,6 +857,7 @@ func main() {
 	mux.HandleFunc("/tools/reverse-ssh/test", s.handleReverseSSHTest)
 	mux.HandleFunc("/tools/pubkey", s.handlePubKey)
 	mux.HandleFunc("/api/m5stickc/adc", s.handleM5StickCADC)
+	mux.HandleFunc("/api/eink/refresh", s.handleEInkRefresh)
 
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
