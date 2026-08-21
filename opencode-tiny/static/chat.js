@@ -980,12 +980,21 @@
 
   function parseModelsWithProviders(cfgJsonStr) {
     const providerGroups = {};
+    const officialZenFreeModels = [
+      'hy3-free', 'zen-hy3-free',
+      'x-preview-f-free', 'zen-x-preview-f-free',
+      'nemotron-3-ultra-free', 'zen-nemotron-3-ultra-free',
+      'nemotron-3.5-lightning-free', 'zen-nemotron-3.5-lightning-free',
+      'mimo-v2.5-free', 'zen-mimo-v2.5-free',
+      'muse-spark-1.2-contributor-free', 'zen-muse-spark-1.2-contributor-free',
+      'big-pickle', 'zen-big-pickle'
+    ];
 
     function getProviderLabel(mKey, pKey, pVal) {
       const k = (pKey || '').toLowerCase();
       const m = (mKey || '').toLowerCase();
 
-      if (m.includes('free') || (m.startsWith('zen-') && m.includes('free'))) {
+      if (officialZenFreeModels.includes(m)) {
         return '🆓 Zen Free Models';
       }
 
