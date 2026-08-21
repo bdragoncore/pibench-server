@@ -36,6 +36,7 @@
         <div id="actions-wrap">
           <button id="btn-actions" title="Actions menu">⚡</button>
           <div id="actions-menu" class="hidden">
+            <button id="opt-sync-models">🔄 Sync Live Models from Gateway</button>
             <button id="opt-settings">⚙ Provider Settings</button>
             <button id="opt-clear">Clear current view</button>
             <button id="opt-export-json">Export conversation (JSON)</button>
@@ -93,6 +94,7 @@
             <div class="json-editor-header">
               <label for="json-editor-textarea">opencode.json Configuration</label>
               <div class="json-editor-actions">
+                <button id="btn-sync-models" class="btn-sm" title="Scrape live model list from OpenMind gateway and update opencode.json config">🔄 Sync Live Models</button>
                 <button id="btn-load-openmind-default" class="btn-sm" title="Load premade OpenMind default configuration from pibox:5000">⚡ Load OpenMind Defaults</button>
                 <button id="btn-format-json" class="btn-sm">🧹 Format</button>
                 <button id="btn-validate-json" class="btn-sm">✓ Validate</button>

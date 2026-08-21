@@ -108,6 +108,26 @@ func main() {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
+	mux.HandleFunc("/api/config/sync-models", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost && r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		count, err := syncModelsFromGateway(cfg)
+		if err != nil {
+			log.Printf("sync models error: %v", err)
+			http.Error(w, "Failed to scrape models from gateway: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		raw, _ := readConfigRaw()
+		writeJSON(w, map[string]any{
+			"status":          "ok",
+			"models_scraped":  count,
+			"raw_json":        string(raw),
+			"active_model":    cfg.Model,
+			"active_base_url": cfg.BaseURL,
+		})
+	})
 	mux.HandleFunc("/api/superuser", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

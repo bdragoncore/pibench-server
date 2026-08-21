@@ -16,6 +16,7 @@
   const optClear = document.getElementById('opt-clear');
   const optExportJson = document.getElementById('opt-export-json');
   const optExportMd = document.getElementById('opt-export-md');
+  const optSyncModels = document.getElementById('opt-sync-models');
   const modelBadge = document.getElementById('model-badge');
   const modelSelectBadge = document.getElementById('model-select-badge');
   const statusBar = document.getElementById('status-bar');
@@ -616,6 +617,13 @@
   async function sendMessage(text) {
     if (!text || isGenerating) return;
 
+    if (text.startsWith('/sync')) {
+      input.value = '';
+      autoResizeInput();
+      triggerSyncModels();
+      return;
+    }
+
     if (text.startsWith('/model')) {
       input.value = '';
       autoResizeInput();
@@ -736,12 +744,38 @@
   const settingsBaseUrl = document.getElementById('settings-base-url');
   const jsonEditorTextarea = document.getElementById('json-editor-textarea');
   const jsonEditorError = document.getElementById('json-editor-error');
+  const btnSyncModels = document.getElementById('btn-sync-models');
   const btnLoadOpenmindDefault = document.getElementById('btn-load-openmind-default');
   const btnFormatJson = document.getElementById('btn-format-json');
   const btnValidateJson = document.getElementById('btn-validate-json');
   const settingsStatus = document.getElementById('settings-status');
 
   let loadedConfigData = null;
+
+  async function triggerSyncModels() {
+    try {
+      if (settingsStatus) settingsStatus.textContent = 'Syncing models from gateway...';
+      const res = await fetch(getApiUrl('api/config/sync-models'), { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (jsonEditorTextarea) jsonEditorTextarea.value = data.raw_json || '';
+        updateModelDropdown(data.raw_json || '', data.active_model);
+        if (settingsStatus) {
+          settingsStatus.textContent = `✓ Synced ${data.models_scraped || 0} live models!`;
+          setTimeout(() => { settingsStatus.textContent = ''; }, 3000);
+        }
+        addSystemMsg(`⚡ Successfully scraped and updated <strong>${data.models_scraped || 0} live models</strong> from OpenMind gateway into opencode.json!`);
+      } else {
+        const errText = await res.text();
+        if (settingsStatus) settingsStatus.textContent = '';
+        addSystemMsg(`❌ Failed to sync models: ${errText}`);
+      }
+    } catch (err) {
+      console.error('Sync models error:', err);
+      if (settingsStatus) settingsStatus.textContent = '';
+      addSystemMsg(`❌ Sync models error: ${err.message}`);
+    }
+  }
 
   function parseModelsFromConfig(cfgJsonStr) {
     const models = [];
@@ -926,6 +960,9 @@
       settingsStatus.textContent = '';
     }
   });
+
+  if (btnSyncModels) btnSyncModels.addEventListener('click', triggerSyncModels);
+  if (optSyncModels) optSyncModels.addEventListener('click', triggerSyncModels);
 
   btnSettings.addEventListener('click', openSettingsModal);
   if (optSettings) optSettings.addEventListener('click', openSettingsModal);

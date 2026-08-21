@@ -3,10 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Config holds everything opencode-tiny needs to communicate with the OpenAI-compatible LLM gateway
@@ -347,4 +350,148 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+type gatewayModelItem struct {
+	ID           string `json:"id"`
+	Capabilities struct {
+		FunctionCalling bool `json:"function_calling"`
+		Vision          bool `json:"vision"`
+		Reasoning       bool `json:"reasoning"`
+	} `json:"capabilities"`
+	Limit struct {
+		Context int `json:"context"`
+		Output  int `json:"output"`
+	} `json:"limit"`
+}
+
+type gatewayModelsResponse struct {
+	Data []gatewayModelItem `json:"data"`
+}
+
+// syncModelsFromGateway scrapes the live model list from the upstream gateway (/v1/models)
+// and updates opencode.json configuration with all available models and context limits.
+func syncModelsFromGateway(cfg *Config) (int, error) {
+	endpoint := strings.TrimSuffix(cfg.BaseURL, "/") + "/models"
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return 0, fmt.Errorf("create request: %w", err)
+	}
+	if cfg.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("fetch models from %s: %w", endpoint, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return 0, fmt.Errorf("gateway %s returned HTTP %d: %s", endpoint, resp.StatusCode, string(body))
+	}
+
+	var gwResp gatewayModelsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&gwResp); err != nil {
+		return 0, fmt.Errorf("parse gateway models JSON: %w", err)
+	}
+
+	if len(gwResp.Data) == 0 {
+		return 0, fmt.Errorf("no models returned by gateway at %s", endpoint)
+	}
+
+	raw, _ := readConfigRaw()
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil || doc == nil {
+		if err := json.Unmarshal([]byte(getDefaultOpenMindConfig()), &doc); err != nil {
+			doc = make(map[string]any)
+		}
+	}
+
+	providerMap, ok := doc["provider"].(map[string]any)
+	if !ok {
+		providerMap = make(map[string]any)
+		doc["provider"] = providerMap
+	}
+
+	openmindMap, ok := providerMap["openmind"].(map[string]any)
+	if !ok {
+		openmindMap = map[string]any{
+			"name": "OpenMind (local)",
+			"api":  "openai",
+			"options": map[string]any{
+				"baseURL": cfg.BaseURL,
+			},
+		}
+		providerMap["openmind"] = openmindMap
+	}
+
+	if opts, ok := openmindMap["options"].(map[string]any); ok {
+		opts["baseURL"] = cfg.BaseURL
+	} else {
+		openmindMap["options"] = map[string]any{"baseURL": cfg.BaseURL}
+	}
+
+	modelsMap, ok := openmindMap["models"].(map[string]any)
+	if !ok {
+		modelsMap = make(map[string]any)
+		openmindMap["models"] = modelsMap
+	}
+
+	count := 0
+	firstFreeModel := ""
+
+	for _, item := range gwResp.Data {
+		mID := item.ID
+		if mID == "" {
+			continue
+		}
+		shortName := strings.TrimPrefix(mID, "openmind/")
+
+		if firstFreeModel == "" && (strings.HasSuffix(shortName, "-free") || strings.HasSuffix(shortName, ":free")) {
+			firstFreeModel = shortName
+		}
+
+		mEntry := map[string]any{
+			"name":      shortName,
+			"tool_call": item.Capabilities.FunctionCalling,
+			"vision":    item.Capabilities.Vision,
+		}
+		if item.Capabilities.Reasoning {
+			mEntry["reasoning"] = true
+		}
+
+		contextLim := item.Limit.Context
+		if contextLim <= 0 {
+			contextLim = 200000
+		}
+		outputLim := item.Limit.Output
+		if outputLim <= 0 {
+			outputLim = 32000
+		}
+		mEntry["limit"] = map[string]any{
+			"context": contextLim,
+			"output":  outputLim,
+		}
+
+		modelsMap[shortName] = mEntry
+		count++
+	}
+
+	updatedBytes, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return 0, fmt.Errorf("marshal updated config: %w", err)
+	}
+
+	if err := writeConfigRaw(updatedBytes); err != nil {
+		return 0, fmt.Errorf("save config: %w", err)
+	}
+
+	if cfg.Model == "" && firstFreeModel != "" {
+		cfg.Model = firstFreeModel
+	}
+
+	return count, nil
 }
