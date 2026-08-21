@@ -1163,26 +1163,11 @@
       'zen-big-pickle', 'zen-go-deepseek-v4-flash', 'zen-go-deepseek-v4-pro'
     ];
 
-    const opencodeDirectFreeModels = [
-      'hy3-free', 'x-preview-f-free',
-      'nemotron-3-ultra-free', 'nemotron-3.5-lightning-free',
-      'mimo-v2.5-free', 'muse-spark-1.2-contributor-free',
-      'big-pickle', 'go-deepseek-v4-flash', 'go-deepseek-v4-pro'
-    ];
-
-    function getProviderLabel(mKey, pKey, pVal) {
+    function getProviderLabel(pKey, pVal) {
       const k = (pKey || '').toLowerCase();
-      const m = (mKey || '').toLowerCase();
-
-      if (k === 'openmind' && (openmindZenFreeModels.includes(m) || m.startsWith('zen-'))) {
-        return '🆓 OpenMind (Zen Free)';
-      }
-      if (k === 'opencode' || (opencodeDirectFreeModels.includes(m) && k !== 'openmind')) {
-        return '⚡ OpenCode (Built-in Free Models)';
-      }
-
-      if (pVal && pVal.name) return pVal.name;
       if (k === 'openmind') return 'OpenMind (Local Gateway)';
+      if (k === 'opencode') return 'OpenCode (Built-in Free Models)';
+      if (pVal && pVal.name) return pVal.name;
       if (k === 'openai') return 'OpenAI';
       if (k === 'anthropic') return 'Anthropic';
       if (k === 'google') return 'Google Gemini';
@@ -1200,11 +1185,11 @@
       if (cfg && cfg.provider) {
         for (const [pKey, pVal] of Object.entries(cfg.provider)) {
           if (pVal && pVal.models) {
+            const pLabel = getProviderLabel(pKey, pVal);
+            if (!providerGroups[pLabel]) {
+              providerGroups[pLabel] = [];
+            }
             for (const [mKey, mVal] of Object.entries(pVal.models)) {
-              const pLabel = getProviderLabel(mKey, pKey, pVal);
-              if (!providerGroups[pLabel]) {
-                providerGroups[pLabel] = [];
-              }
               const fullID = `${pKey}/${mKey}`;
               const displayName = (mVal && mVal.name) ? mVal.name : mKey;
               providerGroups[pLabel].push({
@@ -1212,7 +1197,8 @@
                 key: mKey,
                 provider: pKey,
                 name: displayName,
-                shortName: displayName.replace(/^openmind\//, '').replace(/^opencode\//, '')
+                shortName: displayName.replace(/^openmind\//, '').replace(/^opencode\//, ''),
+                isZenFree: openmindZenFreeModels.includes(mKey) || mKey.startsWith('zen-') || mKey.endsWith('-free')
               });
             }
           }
@@ -1220,28 +1206,33 @@
       }
     } catch (e) {}
 
+    // Sort models within OpenMind so free/zen models are on top
+    if (providerGroups['OpenMind (Local Gateway)']) {
+      providerGroups['OpenMind (Local Gateway)'].sort((a, b) => {
+        if (a.isZenFree && !b.isZenFree) return -1;
+        if (!a.isZenFree && b.isZenFree) return 1;
+        return a.shortName.localeCompare(b.shortName);
+      });
+    }
+
     const orderedGroups = {};
-    if (providerGroups['🆓 OpenMind (Zen Free)']) {
-      orderedGroups['🆓 OpenMind (Zen Free)'] = providerGroups['🆓 OpenMind (Zen Free)'];
-      delete providerGroups['🆓 OpenMind (Zen Free)'];
-    }
-    if (providerGroups['⚡ OpenCode (Built-in Free Models)']) {
-      orderedGroups['⚡ OpenCode (Built-in Free Models)'] = providerGroups['⚡ OpenCode (Built-in Free Models)'];
-      delete providerGroups['⚡ OpenCode (Built-in Free Models)'];
-    }
     if (providerGroups['OpenMind (Local Gateway)']) {
       orderedGroups['OpenMind (Local Gateway)'] = providerGroups['OpenMind (Local Gateway)'];
       delete providerGroups['OpenMind (Local Gateway)'];
     }
+    if (providerGroups['OpenCode (Built-in Free Models)']) {
+      orderedGroups['OpenCode (Built-in Free Models)'] = providerGroups['OpenCode (Built-in Free Models)'];
+      delete providerGroups['OpenCode (Built-in Free Models)'];
+    }
     Object.assign(orderedGroups, providerGroups);
 
     if (Object.keys(orderedGroups).length === 0) {
-      orderedGroups['🆓 OpenMind (Zen Free)'] = [
+      orderedGroups['OpenMind (Local Gateway)'] = [
         { id: 'openmind/zen-big-pickle', key: 'zen-big-pickle', provider: 'openmind', name: 'zen-big-pickle', shortName: 'zen-big-pickle' },
         { id: 'openmind/zen-hy3-free', key: 'zen-hy3-free', provider: 'openmind', name: 'zen-hy3-free', shortName: 'zen-hy3-free' },
         { id: 'openmind/zen-x-preview-f-free', key: 'zen-x-preview-f-free', provider: 'openmind', name: 'zen-x-preview-f-free', shortName: 'zen-x-preview-f-free' }
       ];
-      orderedGroups['⚡ OpenCode Direct (Zen Free)'] = [
+      orderedGroups['OpenCode (Built-in Free Models)'] = [
         { id: 'opencode/big-pickle', key: 'big-pickle', provider: 'opencode', name: 'big-pickle', shortName: 'big-pickle' },
         { id: 'opencode/hy3-free', key: 'hy3-free', provider: 'opencode', name: 'hy3-free', shortName: 'hy3-free' },
         { id: 'opencode/x-preview-f-free', key: 'x-preview-f-free', provider: 'opencode', name: 'x-preview-f-free', shortName: 'x-preview-f-free' }
