@@ -354,6 +354,71 @@ const defaultOpenMindConfigBody = `
           "limit": { "context": 1000000, "output": 384000 }
         }
       }
+    },
+    "opencode": {
+      "name": "OpenCode (Direct Zen)",
+      "api": "openai",
+      "options": {
+        "baseURL": "https://opencode.ai/zen/v1"
+      },
+      "models": {
+        "hy3-free": {
+          "name": "hy3-free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 200000, "output": 32000 }
+        },
+        "x-preview-f-free": {
+          "name": "x-preview-f-free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 200000, "output": 32000 }
+        },
+        "mimo-v2.5-free": {
+          "name": "mimo-v2.5-free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 200000, "output": 32000 }
+        },
+        "nemotron-3.5-lightning-free": {
+          "name": "nemotron-3.5-lightning-free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 200000, "output": 32000 }
+        },
+        "nemotron-3-ultra-free": {
+          "name": "nemotron-3-ultra-free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 1000000, "output": 128000 }
+        },
+        "muse-spark-1.2-contributor-free": {
+          "name": "muse-spark-1.2-contributor-free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 200000, "output": 32000 }
+        },
+        "big-pickle": {
+          "name": "big-pickle",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 200000, "output": 32000 }
+        },
+        "go-deepseek-v4-flash": {
+          "name": "go-deepseek-v4-flash",
+          "reasoning": true,
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 1000000, "output": 384000 }
+        },
+        "go-deepseek-v4-pro": {
+          "name": "go-deepseek-v4-pro",
+          "reasoning": true,
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 1000000, "output": 384000 }
+        }
+      }
     }
   }
 }`
@@ -454,6 +519,18 @@ func syncModelsFromGateway(cfg *Config) (int, error) {
 		openmindMap["models"] = modelsMap
 	}
 
+	// Ensure opencode direct provider is also present in config
+	if _, exists := providerMap["opencode"]; !exists {
+		providerMap["opencode"] = map[string]any{
+			"name": "OpenCode (Direct Zen)",
+			"api":  "openai",
+			"options": map[string]any{
+				"baseURL": "https://opencode.ai/zen/v1",
+			},
+			"models": getDefaultOpenCodeModels(),
+		}
+	}
+
 	count := 0
 	firstFreeModel := ""
 
@@ -519,4 +596,66 @@ func syncModelsFromGateway(cfg *Config) (int, error) {
 	}
 
 	return count, nil
+}
+
+// getDefaultOpenCodeModels returns the canonical direct free models supported on OpenCode Zen.
+func getDefaultOpenCodeModels() map[string]any {
+	return map[string]any{
+		"hy3-free": map[string]any{
+			"name":      "hy3-free",
+			"tool_call": true,
+			"vision":    true,
+			"limit":     map[string]any{"context": 200000, "output": 32000},
+		},
+		"x-preview-f-free": map[string]any{
+			"name":      "x-preview-f-free",
+			"tool_call": true,
+			"vision":    true,
+			"limit":     map[string]any{"context": 200000, "output": 32000},
+		},
+		"mimo-v2.5-free": map[string]any{
+			"name":      "mimo-v2.5-free",
+			"tool_call": true,
+			"vision":    true,
+			"limit":     map[string]any{"context": 200000, "output": 32000},
+		},
+		"nemotron-3.5-lightning-free": map[string]any{
+			"name":      "nemotron-3.5-lightning-free",
+			"tool_call": true,
+			"vision":    true,
+			"limit":     map[string]any{"context": 200000, "output": 32000},
+		},
+		"nemotron-3-ultra-free": map[string]any{
+			"name":      "nemotron-3-ultra-free",
+			"tool_call": true,
+			"vision":    true,
+			"limit":     map[string]any{"context": 1000000, "output": 128000},
+		},
+		"muse-spark-1.2-contributor-free": map[string]any{
+			"name":      "muse-spark-1.2-contributor-free",
+			"tool_call": true,
+			"vision":    true,
+			"limit":     map[string]any{"context": 200000, "output": 32000},
+		},
+		"big-pickle": map[string]any{
+			"name":      "big-pickle",
+			"tool_call": true,
+			"vision":    true,
+			"limit":     map[string]any{"context": 200000, "output": 32000},
+		},
+		"go-deepseek-v4-flash": map[string]any{
+			"name":      "go-deepseek-v4-flash",
+			"reasoning": true,
+			"tool_call": true,
+			"vision":    true,
+			"limit":     map[string]any{"context": 1000000, "output": 384000},
+		},
+		"go-deepseek-v4-pro": map[string]any{
+			"name":      "go-deepseek-v4-pro",
+			"reasoning": true,
+			"tool_call": true,
+			"vision":    true,
+			"limit":     map[string]any{"context": 1000000, "output": 384000},
+		},
+	}
 }

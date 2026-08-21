@@ -277,8 +277,10 @@ func streamChat(ctx context.Context, cfg *Config, messages []Message, tools []To
 		defer stallTimer.Stop()
 
 		cleanedMsgs := sanitizeMessages(pruneMessagesForContext(messages))
+		targetBaseURL, targetModel := resolveEndpointForModel(cfg, cfg.Model)
+
 		reqBody := chatRequest{
-			Model:    cleanModelName(cfg.Model),
+			Model:    targetModel,
 			Messages: cleanedMsgs,
 			Tools:    tools,
 			Stream:   true,
@@ -289,7 +291,7 @@ func streamChat(ctx context.Context, cfg *Config, messages []Message, tools []To
 			return
 		}
 
-		url := strings.TrimRight(cfg.BaseURL, "/") + "/chat/completions"
+		url := strings.TrimRight(targetBaseURL, "/") + "/chat/completions"
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, bytes.NewReader(buf))
 		if err != nil {
 			out <- StreamEvent{Err: fmt.Errorf("build request: %w", err)}
@@ -594,4 +596,25 @@ func cleanModelName(model string) string {
 	default:
 		return model
 	}
+}
+
+// resolveEndpointForModel determines the target baseURL and actual model ID to dispatch to.
+func resolveEndpointForModel(cfg *Config, model string) (string, string) {
+	model = strings.TrimSpace(model)
+	raw, err := readConfigRaw()
+	if err == nil {
+		var oc opencodeProviderConfig
+		if err := json.Unmarshal(raw, &oc); err == nil {
+			providerName, shortModel, ok := strings.Cut(model, "/")
+			if ok {
+				if p, exists := oc.Provider[providerName]; exists && p.Options.BaseURL != "" {
+					return strings.TrimRight(p.Options.BaseURL, "/"), shortModel
+				}
+			}
+		}
+	}
+	if strings.HasPrefix(model, "opencode/") {
+		return "https://opencode.ai/zen/v1", strings.TrimPrefix(model, "opencode/")
+	}
+	return strings.TrimRight(cfg.BaseURL, "/"), cleanModelName(model)
 }

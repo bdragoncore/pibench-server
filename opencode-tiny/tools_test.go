@@ -204,3 +204,28 @@ func TestSanitizeConsecutiveUserMessages(t *testing.T) {
 		t.Fatalf("Expected consolidated user content %q, got %q", expectedUser, clean[0].Content)
 	}
 }
+
+func TestResolveEndpointForModel(t *testing.T) {
+	cfg := &Config{
+		BaseURL: "http://100.74.64.121:5000/v1",
+		Model:   "openmind/zen-hy3-free",
+	}
+
+	// 1. OpenMind model -> OpenMind gateway
+	url, m := resolveEndpointForModel(cfg, "openmind/zen-hy3-free")
+	if !strings.Contains(url, "100.74.64.121:5000") && !strings.Contains(url, "pibox.local") {
+		t.Fatalf("Expected OpenMind baseURL, got %q", url)
+	}
+	if m != "zen-hy3-free" {
+		t.Fatalf("Expected zen-hy3-free, got %q", m)
+	}
+
+	// 2. OpenCode direct model -> https://opencode.ai/zen/v1
+	url2, m2 := resolveEndpointForModel(cfg, "opencode/hy3-free")
+	if !strings.Contains(url2, "opencode.ai/zen/v1") {
+		t.Fatalf("Expected opencode.ai/zen/v1, got %q", url2)
+	}
+	if m2 != "hy3-free" {
+		t.Fatalf("Expected hy3-free, got %q", m2)
+	}
+}

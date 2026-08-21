@@ -1156,22 +1156,29 @@
 
   function parseModelsWithProviders(cfgJsonStr) {
     const providerGroups = {};
-    const officialZenFreeModels = [
-      'hy3-free', 'zen-hy3-free',
-      'x-preview-f-free', 'zen-x-preview-f-free',
-      'nemotron-3-ultra-free', 'zen-nemotron-3-ultra-free',
-      'nemotron-3.5-lightning-free', 'zen-nemotron-3.5-lightning-free',
-      'mimo-v2.5-free', 'zen-mimo-v2.5-free',
-      'muse-spark-1.2-contributor-free', 'zen-muse-spark-1.2-contributor-free',
-      'big-pickle', 'zen-big-pickle'
+    const openmindZenFreeModels = [
+      'zen-hy3-free', 'zen-x-preview-f-free',
+      'zen-nemotron-3-ultra-free', 'zen-nemotron-3.5-lightning-free',
+      'zen-mimo-v2.5-free', 'zen-muse-spark-1.2-contributor-free',
+      'zen-big-pickle', 'zen-go-deepseek-v4-flash', 'zen-go-deepseek-v4-pro'
+    ];
+
+    const opencodeDirectFreeModels = [
+      'hy3-free', 'x-preview-f-free',
+      'nemotron-3-ultra-free', 'nemotron-3.5-lightning-free',
+      'mimo-v2.5-free', 'muse-spark-1.2-contributor-free',
+      'big-pickle', 'go-deepseek-v4-flash', 'go-deepseek-v4-pro'
     ];
 
     function getProviderLabel(mKey, pKey, pVal) {
       const k = (pKey || '').toLowerCase();
       const m = (mKey || '').toLowerCase();
 
-      if (officialZenFreeModels.includes(m)) {
-        return '🆓 Zen Free Models';
+      if (k === 'openmind' && (openmindZenFreeModels.includes(m) || m.startsWith('zen-'))) {
+        return '🆓 OpenMind (Zen Free)';
+      }
+      if (k === 'opencode' || (opencodeDirectFreeModels.includes(m) && k !== 'openmind')) {
+        return '⚡ OpenCode Direct (Zen Free)';
       }
 
       if (pVal && pVal.name) return pVal.name;
@@ -1205,7 +1212,7 @@
                 key: mKey,
                 provider: pKey,
                 name: displayName,
-                shortName: displayName.replace(/^openmind\//, '')
+                shortName: displayName.replace(/^openmind\//, '').replace(/^opencode\//, '')
               });
             }
           }
@@ -1214,17 +1221,30 @@
     } catch (e) {}
 
     const orderedGroups = {};
-    if (providerGroups['🆓 Zen Free Models']) {
-      orderedGroups['🆓 Zen Free Models'] = providerGroups['🆓 Zen Free Models'];
-      delete providerGroups['🆓 Zen Free Models'];
+    if (providerGroups['🆓 OpenMind (Zen Free)']) {
+      orderedGroups['🆓 OpenMind (Zen Free)'] = providerGroups['🆓 OpenMind (Zen Free)'];
+      delete providerGroups['🆓 OpenMind (Zen Free)'];
+    }
+    if (providerGroups['⚡ OpenCode Direct (Zen Free)']) {
+      orderedGroups['⚡ OpenCode Direct (Zen Free)'] = providerGroups['⚡ OpenCode Direct (Zen Free)'];
+      delete providerGroups['⚡ OpenCode Direct (Zen Free)'];
+    }
+    if (providerGroups['OpenMind (Local Gateway)']) {
+      orderedGroups['OpenMind (Local Gateway)'] = providerGroups['OpenMind (Local Gateway)'];
+      delete providerGroups['OpenMind (Local Gateway)'];
     }
     Object.assign(orderedGroups, providerGroups);
 
     if (Object.keys(orderedGroups).length === 0) {
-      orderedGroups['🆓 Zen Free Models'] = [
+      orderedGroups['🆓 OpenMind (Zen Free)'] = [
         { id: 'openmind/zen-big-pickle', key: 'zen-big-pickle', provider: 'openmind', name: 'zen-big-pickle', shortName: 'zen-big-pickle' },
         { id: 'openmind/zen-hy3-free', key: 'zen-hy3-free', provider: 'openmind', name: 'zen-hy3-free', shortName: 'zen-hy3-free' },
         { id: 'openmind/zen-x-preview-f-free', key: 'zen-x-preview-f-free', provider: 'openmind', name: 'zen-x-preview-f-free', shortName: 'zen-x-preview-f-free' }
+      ];
+      orderedGroups['⚡ OpenCode Direct (Zen Free)'] = [
+        { id: 'opencode/big-pickle', key: 'big-pickle', provider: 'opencode', name: 'big-pickle', shortName: 'big-pickle' },
+        { id: 'opencode/hy3-free', key: 'hy3-free', provider: 'opencode', name: 'hy3-free', shortName: 'hy3-free' },
+        { id: 'opencode/x-preview-f-free', key: 'x-preview-f-free', provider: 'opencode', name: 'x-preview-f-free', shortName: 'x-preview-f-free' }
       ];
     }
 
