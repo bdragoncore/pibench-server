@@ -1178,7 +1178,7 @@
         return '🆓 OpenMind (Zen Free)';
       }
       if (k === 'opencode' || (opencodeDirectFreeModels.includes(m) && k !== 'openmind')) {
-        return '⚡ OpenCode Direct (Zen Free)';
+        return '⚡ OpenCode (Built-in Free Models)';
       }
 
       if (pVal && pVal.name) return pVal.name;
@@ -1225,9 +1225,9 @@
       orderedGroups['🆓 OpenMind (Zen Free)'] = providerGroups['🆓 OpenMind (Zen Free)'];
       delete providerGroups['🆓 OpenMind (Zen Free)'];
     }
-    if (providerGroups['⚡ OpenCode Direct (Zen Free)']) {
-      orderedGroups['⚡ OpenCode Direct (Zen Free)'] = providerGroups['⚡ OpenCode Direct (Zen Free)'];
-      delete providerGroups['⚡ OpenCode Direct (Zen Free)'];
+    if (providerGroups['⚡ OpenCode (Built-in Free Models)']) {
+      orderedGroups['⚡ OpenCode (Built-in Free Models)'] = providerGroups['⚡ OpenCode (Built-in Free Models)'];
+      delete providerGroups['⚡ OpenCode (Built-in Free Models)'];
     }
     if (providerGroups['OpenMind (Local Gateway)']) {
       orderedGroups['OpenMind (Local Gateway)'] = providerGroups['OpenMind (Local Gateway)'];

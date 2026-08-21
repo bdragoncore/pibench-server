@@ -356,7 +356,7 @@ const defaultOpenMindConfigBody = `
       }
     },
     "opencode": {
-      "name": "OpenCode (Direct Zen)",
+      "name": "OpenCode (Built-in Free Models)",
       "api": "openai",
       "options": {
         "baseURL": "https://opencode.ai/zen/v1"
@@ -403,20 +403,6 @@ const defaultOpenMindConfigBody = `
           "tool_call": true,
           "vision": true,
           "limit": { "context": 200000, "output": 32000 }
-        },
-        "go-deepseek-v4-flash": {
-          "name": "go-deepseek-v4-flash",
-          "reasoning": true,
-          "tool_call": true,
-          "vision": true,
-          "limit": { "context": 1000000, "output": 384000 }
-        },
-        "go-deepseek-v4-pro": {
-          "name": "go-deepseek-v4-pro",
-          "reasoning": true,
-          "tool_call": true,
-          "vision": true,
-          "limit": { "context": 1000000, "output": 384000 }
         }
       }
     }
@@ -519,16 +505,24 @@ func syncModelsFromGateway(cfg *Config) (int, error) {
 		openmindMap["models"] = modelsMap
 	}
 
-	// Ensure opencode direct provider is also present in config
-	if _, exists := providerMap["opencode"]; !exists {
-		providerMap["opencode"] = map[string]any{
-			"name": "OpenCode (Direct Zen)",
+	// Ensure opencode direct provider is present in config with official free models
+	opencodeMap, ok := providerMap["opencode"].(map[string]any)
+	if !ok {
+		opencodeMap = map[string]any{
+			"name": "OpenCode (Built-in Free Models)",
 			"api":  "openai",
 			"options": map[string]any{
 				"baseURL": "https://opencode.ai/zen/v1",
 			},
 			"models": getDefaultOpenCodeModels(),
 		}
+		providerMap["opencode"] = opencodeMap
+	} else {
+		opencodeMap["name"] = "OpenCode (Built-in Free Models)"
+		if opts, ok := opencodeMap["options"].(map[string]any); !ok || opts["baseURL"] == "" {
+			opencodeMap["options"] = map[string]any{"baseURL": "https://opencode.ai/zen/v1"}
+		}
+		opencodeMap["models"] = getDefaultOpenCodeModels()
 	}
 
 	count := 0
@@ -642,20 +636,6 @@ func getDefaultOpenCodeModels() map[string]any {
 			"tool_call": true,
 			"vision":    true,
 			"limit":     map[string]any{"context": 200000, "output": 32000},
-		},
-		"go-deepseek-v4-flash": map[string]any{
-			"name":      "go-deepseek-v4-flash",
-			"reasoning": true,
-			"tool_call": true,
-			"vision":    true,
-			"limit":     map[string]any{"context": 1000000, "output": 384000},
-		},
-		"go-deepseek-v4-pro": map[string]any{
-			"name":      "go-deepseek-v4-pro",
-			"reasoning": true,
-			"tool_call": true,
-			"vision":    true,
-			"limit":     map[string]any{"context": 1000000, "output": 384000},
 		},
 	}
 }

@@ -299,8 +299,15 @@ func streamChat(ctx context.Context, cfg *Config, messages []Message, tools []To
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "text/event-stream")
-		if cfg.APIKey != "" {
-			req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+		authKey := cfg.APIKey
+		if strings.HasPrefix(cfg.Model, "opencode/") {
+			req.Header.Set("User-Agent", "opencode/1.2.25")
+			if authKey == "" {
+				authKey = envOr("OPENCODE_API_KEY", "public")
+			}
+		}
+		if authKey != "" {
+			req.Header.Set("Authorization", "Bearer "+authKey)
 		}
 
 		resp, err := http.DefaultClient.Do(req)
