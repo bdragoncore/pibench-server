@@ -719,6 +719,104 @@ pre.code-block {
   background: transparent;
 }
 
+/* ---------- Thinking Boxes (matching openmind-browser-extension .msg-thinking) ---------- */
+.msg-thinking {
+  align-self: flex-start;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: min(280px, 100%);
+  background: #121726;
+  border: 1px solid #252d42;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  overflow: hidden;
+  margin: 0.5rem 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: border-color 0.2s ease;
+}
+
+.msg-thinking.thinking-streaming {
+  border-color: rgba(124, 138, 255, 0.6);
+  box-shadow: 0 0 10px rgba(124, 138, 255, 0.15);
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  min-height: 32px;
+  background: #182033;
+  border-bottom: 1px solid #252d42;
+  cursor: pointer;
+  user-select: none;
+}
+
+.msg-thinking.collapsed .thinking-header {
+  border-bottom: none;
+}
+
+.msg-thinking.collapsed .thinking-body {
+  display: none;
+}
+
+.msg-thinking.collapsed .thinking-toggle-btn {
+  transform: rotate(-90deg);
+}
+
+.thinking-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: #a0aec0;
+}
+
+.thinking-sparkle {
+  font-size: 0.85rem;
+}
+
+.thinking-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.thinking-live-dot {
+  color: #7c8aff;
+  font-size: 0.75rem;
+  animation: pulse-dot 1.2s infinite;
+}
+
+.thinking-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  padding: 0;
+}
+
+.thinking-body {
+  padding: 8px 12px;
+  background: #0d121e;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.thinking-content {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #8c9bb0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ---------- Tool Cards (matching openmind-browser-extension .msg-shell / .msg-tool) ---------- */
 .tool-card {
   flex: 0 0 auto;

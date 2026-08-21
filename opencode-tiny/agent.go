@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 const systemPrompt = `You are opencode-tiny, a minimal coding assistant running on a resource-constrained machine.
@@ -13,12 +14,13 @@ Use them to inspect and modify files, search the web, control hardware, and run 
 
 // AgentEvent represents a single real-time event unit emitted during an agent turn, streamed to clients as an SSE data frame.
 type AgentEvent struct {
-	Type    string `json:"type"`              // Event classification: "text", "tool_call", "tool_result", "done", or "error"
-	Text    string `json:"text,omitempty"`    // Streamed text token content
-	Tool    string `json:"tool,omitempty"`    // Executed tool name
-	Args    string `json:"args,omitempty"`    // Arguments JSON passed to the tool
-	Output  string `json:"output,omitempty"`  // Execution result/stdout returned by the tool
-	Message string `json:"message,omitempty"` // Human-readable error or status message
+	Type      string `json:"type"`                // Event classification: "text", "thinking", "tool_call", "tool_result", "done", or "error"
+	Text      string `json:"text,omitempty"`      // Streamed text token content
+	Reasoning string `json:"reasoning,omitempty"` // Streamed thinking / reasoning content
+	Tool      string `json:"tool,omitempty"`      // Executed tool name
+	Args      string `json:"args,omitempty"`      // Arguments JSON passed to the tool
+	Output    string `json:"output,omitempty"`    // Execution result/stdout returned by the tool
+	Message   string `json:"message,omitempty"`   // Human-readable error or status message
 }
 
 // runAgentTurn drives the LLM completion and tool-execution loop for a user message,
@@ -58,8 +60,12 @@ func runAgentTurn(ctx context.Context, cfg *Config, store *Store, sessionID, use
 		return fmt.Errorf("save user message: %w", err)
 	}
 
+	// Tool repetition loop guard tracking
+	toolSignatureCount := make(map[string]int)
+
 	for turn := 0; turn < cfg.MaxTurns; turn++ {
 		var textBuf string
+		var reasoningBuf string
 		var finalToolCalls []ToolCall
 		var streamErr error
 
@@ -67,6 +73,9 @@ func runAgentTurn(ctx context.Context, cfg *Config, store *Store, sessionID, use
 			switch {
 			case ev.Err != nil:
 				streamErr = ev.Err
+			case ev.Reasoning != "":
+				reasoningBuf += ev.Reasoning
+				emit(AgentEvent{Type: "thinking", Reasoning: ev.Reasoning})
 			case ev.Text != "":
 				textBuf += ev.Text
 				emit(AgentEvent{Type: "text", Text: ev.Text})
@@ -79,7 +88,23 @@ func runAgentTurn(ctx context.Context, cfg *Config, store *Store, sessionID, use
 			return streamErr
 		}
 
-		assistantMsg := Message{Role: "assistant", Content: textBuf, ToolCalls: finalToolCalls}
+		// Empty stream triage (upstream hiccup returning nothing)
+		if textBuf == "" && reasoningBuf == "" && len(finalToolCalls) == 0 {
+			if turn < cfg.MaxTurns-1 {
+				messages = append(messages, Message{
+					Role:    "user",
+					Content: "Continue with the task. Call a tool or provide the response.",
+				})
+				continue
+			}
+		}
+
+		assistantMsg := Message{
+			Role:             "assistant",
+			Content:          textBuf,
+			ReasoningContent: reasoningBuf,
+			ToolCalls:        finalToolCalls,
+		}
 		if err := store.addMessage(sessionID, assistantMsg); err != nil {
 			return fmt.Errorf("save assistant message: %w", err)
 		}
@@ -94,7 +119,16 @@ func runAgentTurn(ctx context.Context, cfg *Config, store *Store, sessionID, use
 			argsPreview := tc.Function.Arguments
 			emit(AgentEvent{Type: "tool_call", Tool: tc.Function.Name, Args: argsPreview})
 
-			output := runTool(ctx, cfg, tc.Function.Name, tc.Function.Arguments)
+			sig := fmt.Sprintf("%s:%s", tc.Function.Name, strings.TrimSpace(tc.Function.Arguments))
+			toolSignatureCount[sig]++
+
+			var output string
+			if toolSignatureCount[sig] > 3 {
+				output = fmt.Sprintf("Loop guard blocked repeated execution of %s (called %d times with identical arguments). Use a different action or ask for help.", tc.Function.Name, toolSignatureCount[sig])
+			} else {
+				output = runTool(ctx, cfg, tc.Function.Name, tc.Function.Arguments)
+			}
+
 			emit(AgentEvent{Type: "tool_result", Tool: tc.Function.Name, Output: output})
 
 			toolMsg := Message{Role: "tool", Content: output, ToolCallID: tc.ID}

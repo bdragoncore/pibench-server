@@ -14,10 +14,11 @@ import (
 
 // Message represents a single chat message formatted in the OpenAI Chat Completions API schema.
 type Message struct {
-	Role       string     `json:"role"`                   // Message role: "system", "user", "assistant", or "tool"
-	Content    any        `json:"content"`                // Text content string OR multimodal []any (must not be omitted)
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`   // Array of tool calls emitted by the assistant
-	ToolCallID string     `json:"tool_call_id,omitempty"` // ID of the tool call this message responds to (for role="tool")
+	Role             string     `json:"role"`                        // Message role: "system", "user", "assistant", or "tool"
+	Content          any        `json:"content"`                     // Text content string OR multimodal []any (must not be omitted)
+	ReasoningContent string     `json:"reasoning_content,omitempty"` // Internal thinking / reasoning trace emitted by reasoning models
+	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`        // Array of tool calls emitted by the assistant
+	ToolCallID       string     `json:"tool_call_id,omitempty"`      // ID of the tool call this message responds to (for role="tool")
 }
 
 // ToolCall represents a function call emitted by the model.
@@ -57,8 +58,10 @@ type chatRequest struct {
 type streamChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content   string     `json:"content"`
-			ToolCalls []ToolCall `json:"tool_calls"`
+			Content          string     `json:"content"`
+			ReasoningContent string     `json:"reasoning_content"`
+			Reasoning        string     `json:"reasoning"`
+			ToolCalls        []ToolCall `json:"tool_calls"`
 		} `json:"delta"`
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
@@ -72,6 +75,7 @@ type streamChunk struct {
 // StreamEvent represents a single token delta or completion event emitted during streaming.
 type StreamEvent struct {
 	Text         string     // Streamed text token fragment
+	Reasoning    string     // Streamed reasoning / thinking token fragment
 	Done         bool       // True when the turn completion ends
 	ToolCalls    []ToolCall // Reassembled complete tool calls (present on Done=true)
 	FinishReason string     // Upstream completion finish reason
@@ -165,7 +169,25 @@ func sanitizeMessages(msgs []Message) []Message {
 				m.Content = "(no output)"
 			}
 			step1 = append(step1, m)
-		case "user", "system":
+		case "user":
+			if m.Content == nil {
+				m.Content = ""
+			}
+			// If preceding message in step1 was also a user message, consolidate or deduplicate
+			if len(step1) > 0 && step1[len(step1)-1].Role == "user" {
+				prevContent, prevOk := step1[len(step1)-1].Content.(string)
+				currContent, currOk := m.Content.(string)
+				if prevOk && currOk {
+					if strings.TrimSpace(prevContent) == strings.TrimSpace(currContent) {
+						// Exact duplicate (e.g. repeated "continue" / "try again") -> keep single
+						continue
+					}
+					step1[len(step1)-1].Content = prevContent + "\n\n" + currContent
+					continue
+				}
+			}
+			step1 = append(step1, m)
+		case "system":
 			if m.Content == nil {
 				m.Content = ""
 			}
@@ -325,6 +347,13 @@ func streamChat(ctx context.Context, cfg *Config, messages []Message, tools []To
 				continue
 			}
 			choice := chunk.Choices[0]
+			reasoning := choice.Delta.ReasoningContent
+			if reasoning == "" {
+				reasoning = choice.Delta.Reasoning
+			}
+			if reasoning != "" {
+				out <- StreamEvent{Reasoning: reasoning}
+			}
 
 			if choice.Delta.Content != "" {
 				out <- StreamEvent{Text: choice.Delta.Content}

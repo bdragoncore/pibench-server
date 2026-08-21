@@ -505,6 +505,57 @@
     scrollBottom();
   }
 
+  // Thinking Box Helper (matching openmind-browser-extension .msg-thinking)
+  function addThinkingBox(initialText = '', isStreaming = false) {
+    if (log.querySelector('.welcome-container')) {
+      log.innerHTML = '';
+    }
+    const box = document.createElement('div');
+    box.className = 'msg-thinking' + (isStreaming ? ' thinking-streaming' : ' collapsed');
+    box.innerHTML = `
+      <div class="thinking-header">
+        <div class="thinking-title">
+          <span class="thinking-sparkle">✨</span>
+          <span class="thinking-label">${isStreaming ? 'Thinking...' : 'Thought Process'}</span>
+        </div>
+        <div class="thinking-controls">
+          ${isStreaming ? '<span class="thinking-live-dot">●</span>' : ''}
+          <button type="button" class="thinking-toggle-btn" title="Toggle thoughts">▼</button>
+        </div>
+      </div>
+      <div class="thinking-body">
+        <div class="thinking-content">${escapeHtml(initialText)}</div>
+      </div>
+    `;
+    const header = box.querySelector('.thinking-header');
+    header.addEventListener('click', () => {
+      box.classList.toggle('collapsed');
+    });
+    log.appendChild(box);
+    scrollBottom();
+    return box;
+  }
+
+  function updateThinkingBox(box, text, isStreaming = true) {
+    if (!box) return;
+    const contentEl = box.querySelector('.thinking-content');
+    if (contentEl) {
+      contentEl.textContent = text;
+    }
+    scrollBottom();
+  }
+
+  function finishThinkingBox(box, text) {
+    if (!box) return;
+    box.classList.remove('thinking-streaming');
+    box.classList.add('collapsed');
+    const label = box.querySelector('.thinking-label');
+    if (label) label.textContent = 'Thought Process';
+    const liveDot = box.querySelector('.thinking-live-dot');
+    if (liveDot) liveDot.remove();
+    updateThinkingBox(box, text, false);
+  }
+
   function getCookie(name) {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -686,6 +737,9 @@
         if (m.role === 'user') {
           addMsg('user', m.content);
         } else if (m.role === 'assistant') {
+          if (m.reasoning_content) {
+            addThinkingBox(m.reasoning_content, false);
+          }
           if (m.content) {
             addMsg('assistant', m.content);
           }
@@ -888,6 +942,8 @@
 
     let assistantBody = null;
     let assistantText = '';
+    let activeThinkingBox = null;
+    let activeThinkingText = '';
 
     try {
       const res = await fetch(getApiUrl('api/chat'), {
@@ -924,24 +980,52 @@
           if (!line) continue;
           const ev = JSON.parse(line.slice(6));
 
-          if (ev.type === 'text') {
+          if (ev.type === 'thinking') {
+            if (!activeThinkingBox) {
+              activeThinkingBox = addThinkingBox('', true);
+            }
+            activeThinkingText += ev.reasoning;
+            updateThinkingBox(activeThinkingBox, activeThinkingText, true);
+          } else if (ev.type === 'text') {
+            if (activeThinkingBox) {
+              finishThinkingBox(activeThinkingBox, activeThinkingText);
+              activeThinkingBox = null;
+              activeThinkingText = '';
+            }
             if (!assistantBody) assistantBody = addMsg('assistant', '');
             assistantText += ev.text;
             assistantBody.innerHTML = parseMarkdown(assistantText);
           } else if (ev.type === 'tool_call') {
+            if (activeThinkingBox) {
+              finishThinkingBox(activeThinkingBox, activeThinkingText);
+              activeThinkingBox = null;
+              activeThinkingText = '';
+            }
             statusText.textContent = `Running tool ${ev.tool}...`;
             addToolCard(ev.tool, ev.args, null, false);
           } else if (ev.type === 'tool_result') {
             statusText.textContent = `Completed ${ev.tool}`;
             addToolCard(ev.tool, '', ev.output, true);
           } else if (ev.type === 'error') {
+            if (activeThinkingBox) {
+              finishThinkingBox(activeThinkingBox, activeThinkingText);
+              activeThinkingBox = null;
+            }
             addMsg('error', ev.message);
           } else if (ev.type === 'done') {
+            if (activeThinkingBox) {
+              finishThinkingBox(activeThinkingBox, activeThinkingText);
+              activeThinkingBox = null;
+            }
             statusText.textContent = 'Done';
           }
         }
       }
     } catch (err) {
+      if (activeThinkingBox) {
+        finishThinkingBox(activeThinkingBox, activeThinkingText);
+        activeThinkingBox = null;
+      }
       if (err.name === 'AbortError') {
         addSystemMsg('🛑 Generation stopped by user.');
         statusText.textContent = 'Stopped';

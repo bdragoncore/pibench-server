@@ -86,15 +86,18 @@ func TestSanitizeMessages(t *testing.T) {
 		t.Fatalf("Expected tool call to remain intact")
 	}
 
-	// Scenario 3: Empty assistant message
+	// Scenario 3: Empty assistant message dropped and consecutive user messages consolidated
 	emptyRaw := []Message{
 		{Role: "user", Content: "hi"},
 		{Role: "assistant", Content: ""},
 		{Role: "user", Content: "test"},
 	}
 	emptyClean := sanitizeMessages(emptyRaw)
-	if len(emptyClean) != 2 {
-		t.Fatalf("Expected empty assistant message to be dropped, got %d messages", len(emptyClean))
+	if len(emptyClean) != 1 {
+		t.Fatalf("Expected empty assistant dropped and users consolidated, got %d messages", len(emptyClean))
+	}
+	if emptyClean[0].Content != "hi\n\ntest" {
+		t.Fatalf("Expected content 'hi\\n\\ntest', got %q", emptyClean[0].Content)
 	}
 
 	// Scenario 4: Multiple parallel tool calls (Anthropic/OpenAI conformance)
@@ -180,5 +183,24 @@ func TestCleanModelName(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("cleanModelName(%q) = %q, want %q", tt.input, got, tt.want)
 		}
+	}
+}
+
+func TestSanitizeConsecutiveUserMessages(t *testing.T) {
+	// Scenario: Consecutive duplicate user messages
+	raw := []Message{
+		{Role: "user", Content: "try again"},
+		{Role: "user", Content: "try again"},
+		{Role: "user", Content: "continue"},
+		{Role: "assistant", Content: "Ok continuing"},
+	}
+
+	clean := sanitizeMessages(raw)
+	if len(clean) != 2 {
+		t.Fatalf("Expected 2 messages after consecutive user consolidation, got %d", len(clean))
+	}
+	expectedUser := "try again\n\ncontinue"
+	if clean[0].Content != expectedUser {
+		t.Fatalf("Expected consolidated user content %q, got %q", expectedUser, clean[0].Content)
 	}
 }
