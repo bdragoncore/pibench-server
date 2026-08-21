@@ -78,13 +78,20 @@ type StreamEvent struct {
 	Err          error      // Non-nil if a stream or upstream error occurred
 }
 
-// sanitizeMessages filters out malformed or empty messages that cause upstream HTTP 400 errors.
+// sanitizeMessages filters and fixes message history to ensure strict OpenAI API schema conformance:
+// 1. Removes empty assistant messages (no tool_calls and empty content).
+// 2. Fixes orphaned assistant tool_calls that are not followed by matching tool response messages (e.g. from interrupted turns).
+// 3. Removes orphaned tool messages that have no preceding assistant with tool_calls.
+// 4. Ensures all user and system messages have non-nil content.
 func sanitizeMessages(msgs []Message) []Message {
-	clean := make([]Message, 0, len(msgs))
+	if len(msgs) == 0 {
+		return msgs
+	}
+
+	var step1 []Message
 	for _, m := range msgs {
 		switch m.Role {
 		case "assistant":
-			// If assistant message has no tool calls and empty content, don't send an empty shell
 			if len(m.ToolCalls) == 0 {
 				if str, ok := m.Content.(string); ok && strings.TrimSpace(str) == "" {
 					continue
@@ -93,21 +100,82 @@ func sanitizeMessages(msgs []Message) []Message {
 					continue
 				}
 			}
-			clean = append(clean, m)
+			step1 = append(step1, m)
 		case "tool":
 			if str, ok := m.Content.(string); ok && str == "" {
 				m.Content = "(no output)"
 			}
-			clean = append(clean, m)
+			if m.Content == nil {
+				m.Content = "(no output)"
+			}
+			step1 = append(step1, m)
 		case "user", "system":
 			if m.Content == nil {
 				m.Content = ""
 			}
-			clean = append(clean, m)
+			step1 = append(step1, m)
 		default:
+			step1 = append(step1, m)
+		}
+	}
+
+	// Step 2: Validate and pair tool calls with tool responses
+	var clean []Message
+	for i := 0; i < len(step1); i++ {
+		m := step1[i]
+		if m.Role == "assistant" && len(m.ToolCalls) > 0 {
+			// Count how many matching tool messages follow immediately
+			neededIDs := make(map[string]bool)
+			for _, tc := range m.ToolCalls {
+				if tc.ID != "" {
+					neededIDs[tc.ID] = true
+				}
+			}
+
+			// Look ahead for matching tool messages
+			foundAll := true
+			lookahead := i + 1
+			for tcID := range neededIDs {
+				found := false
+				for j := lookahead; j < len(step1); j++ {
+					if step1[j].Role != "tool" {
+						break
+					}
+					if step1[j].ToolCallID == tcID {
+						found = true
+						break
+					}
+				}
+				if !found {
+					foundAll = false
+					break
+				}
+			}
+
+			if !foundAll {
+				// Dangling tool call: strip tool calls and preserve content
+				m.ToolCalls = nil
+				if str, ok := m.Content.(string); !ok || strings.TrimSpace(str) == "" {
+					m.Content = "(interrupted)"
+				}
+			}
+			clean = append(clean, m)
+		} else if m.Role == "tool" {
+			// Only include tool message if preceding message in clean was assistant with tool_calls
+			if len(clean) > 0 && clean[len(clean)-1].Role == "assistant" && len(clean[len(clean)-1].ToolCalls) > 0 {
+				clean = append(clean, m)
+			} else {
+				// Convert orphaned tool message into user observation note to preserve context without schema error
+				clean = append(clean, Message{
+					Role:    "user",
+					Content: fmt.Sprintf("[Tool observation: %v]", m.Content),
+				})
+			}
+		} else {
 			clean = append(clean, m)
 		}
 	}
+
 	return clean
 }
 
