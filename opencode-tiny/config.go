@@ -23,21 +23,21 @@ type Config struct {
 	Hostname     string // Hostname or IP binding address
 	DBPath       string // SQLite session database file path
 	MaxTurns     int    // Maximum agent tool-calling loop turns per request to prevent infinite loops
-	mu           sync.RWMutex
+	Mu           sync.RWMutex
 	sudoPassword string // In-memory cached superuser password for elevated tool execution
 }
 
 // setSudoPassword safely caches the superuser password in memory.
 func (c *Config) setSudoPassword(pass string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
 	c.sudoPassword = pass
 }
 
 // getSudoPassword safely retrieves the cached superuser password.
 func (c *Config) getSudoPassword() string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.Mu.RLock()
+	defer c.Mu.RUnlock()
 	return c.sudoPassword
 }
 

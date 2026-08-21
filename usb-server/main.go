@@ -14,7 +14,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -36,9 +35,7 @@ type WifiStatus struct {
 	Hotspot   bool
 }
 
-type Server struct {
-	mu sync.Mutex
-}
+type Server struct{}
 
 // ocProxy reverse-proxies opencode-tiny.service (the low-RAM Go agent server)
 // so the OpenCode tab is same-origin with this admin portal.
