@@ -78,11 +78,57 @@ type StreamEvent struct {
 	Err          error      // Non-nil if a stream or upstream error occurred
 }
 
+var knownToolNames = []string{
+	"bash", "websearch", "webfetch", "read_file", "write_file", "edit_file",
+	"superuser_access", "gpio_control", "host_shell",
+}
+
+func sanitizeToolName(name string) string {
+	name = strings.TrimSpace(name)
+	for _, known := range knownToolNames {
+		if name == known {
+			return name
+		}
+	}
+	// Check if known tool name is a prefix (e.g. websearchwebsearchwebfetch -> websearch)
+	for _, known := range knownToolNames {
+		if strings.HasPrefix(name, known) {
+			return known
+		}
+	}
+	// Check if known tool name is contained
+	for _, known := range knownToolNames {
+		if strings.Contains(name, known) {
+			return known
+		}
+	}
+	return "bash"
+}
+
+func sanitizeToolArguments(args string) string {
+	args = strings.TrimSpace(args)
+	if args == "" {
+		return "{}"
+	}
+	var test any
+	if err := json.Unmarshal([]byte(args), &test); err == nil {
+		return args
+	}
+	// If arguments contain multiple concatenated JSON objects (e.g. {"a":1}{"b":2})
+	dec := json.NewDecoder(strings.NewReader(args))
+	var first json.RawMessage
+	if err := dec.Decode(&first); err == nil && len(first) > 0 {
+		return string(first)
+	}
+	return "{}"
+}
+
 // sanitizeMessages filters and fixes message history to ensure strict OpenAI API schema conformance:
 // 1. Removes empty assistant messages (no tool_calls and empty content).
-// 2. Fixes orphaned assistant tool_calls that are not followed by matching tool response messages (e.g. from interrupted turns).
-// 3. Removes orphaned tool messages that have no preceding assistant with tool_calls.
-// 4. Ensures all user and system messages have non-nil content.
+// 2. Fixes corrupted tool names (e.g. websearchwebsearchwebfetch) and concatenated JSON arguments.
+// 3. Fixes orphaned assistant tool_calls that are not followed by matching tool response messages (e.g. from interrupted turns).
+// 4. Removes orphaned tool messages that have no preceding assistant with tool_calls.
+// 5. Ensures all user and system messages have non-nil content.
 func sanitizeMessages(msgs []Message) []Message {
 	if len(msgs) == 0 {
 		return msgs
@@ -98,6 +144,16 @@ func sanitizeMessages(msgs []Message) []Message {
 				}
 				if m.Content == nil {
 					continue
+				}
+			} else {
+				// Sanitize tool call names and arguments
+				for j := range m.ToolCalls {
+					m.ToolCalls[j].Function.Name = sanitizeToolName(m.ToolCalls[j].Function.Name)
+					m.ToolCalls[j].Function.Arguments = sanitizeToolArguments(m.ToolCalls[j].Function.Arguments)
+					if m.ToolCalls[j].ID == "" {
+						m.ToolCalls[j].ID = fmt.Sprintf("call_%d", j)
+					}
+					m.ToolCalls[j].Type = "function"
 				}
 			}
 			step1 = append(step1, m)
@@ -231,8 +287,7 @@ func streamChat(ctx context.Context, cfg *Config, messages []Message, tools []To
 			return
 		}
 
-		toolAcc := map[int]*ToolCall{}
-		var order []int
+		var accumulated []*ToolCall
 		finishReason := ""
 
 		scanner := bufio.NewScanner(resp.Body)
@@ -270,20 +325,53 @@ func streamChat(ctx context.Context, cfg *Config, messages []Message, tools []To
 			}
 
 			for _, tc := range choice.Delta.ToolCalls {
-				existing, ok := toolAcc[tc.Index]
-				if !ok {
-					existing = &ToolCall{Index: tc.Index, Type: "function"}
-					toolAcc[tc.Index] = existing
-					order = append(order, tc.Index)
-				}
+				var target *ToolCall
 				if tc.ID != "" {
-					existing.ID = tc.ID
+					// Check if tool call with this ID already exists
+					for _, existing := range accumulated {
+						if existing.ID == tc.ID {
+							target = existing
+							break
+						}
+					}
+					if target == nil {
+						// Create a new tool call
+						target = &ToolCall{
+							Index: len(accumulated),
+							ID:    tc.ID,
+							Type:  "function",
+						}
+						accumulated = append(accumulated, target)
+					}
+				} else if tc.Index > 0 && tc.Index < len(accumulated) {
+					target = accumulated[tc.Index]
+				} else if len(accumulated) > 0 {
+					target = accumulated[len(accumulated)-1]
+				} else {
+					target = &ToolCall{
+						Index: 0,
+						Type:  "function",
+					}
+					accumulated = append(accumulated, target)
 				}
+
 				if tc.Function.Name != "" {
-					existing.Function.Name += tc.Function.Name
+					if target.Function.Name == "" || target.Function.Name == tc.Function.Name {
+						target.Function.Name = tc.Function.Name
+					} else if !strings.Contains(target.Function.Name, tc.Function.Name) {
+						// If a distinct new function name arrives without a new ID, start a new tool call
+						target = &ToolCall{
+							Index: len(accumulated),
+							Type:  "function",
+							Function: FunctionCall{
+								Name: tc.Function.Name,
+							},
+						}
+						accumulated = append(accumulated, target)
+					}
 				}
 				if tc.Function.Arguments != "" {
-					existing.Function.Arguments += tc.Function.Arguments
+					target.Function.Arguments += tc.Function.Arguments
 				}
 			}
 
@@ -297,8 +385,22 @@ func streamChat(ctx context.Context, cfg *Config, messages []Message, tools []To
 		}
 
 		var finalCalls []ToolCall
-		for _, idx := range order {
-			finalCalls = append(finalCalls, *toolAcc[idx])
+		for _, tc := range accumulated {
+			name := sanitizeToolName(tc.Function.Name)
+			args := sanitizeToolArguments(tc.Function.Arguments)
+			id := tc.ID
+			if id == "" {
+				id = fmt.Sprintf("call_%d", tc.Index)
+			}
+			finalCalls = append(finalCalls, ToolCall{
+				Index: tc.Index,
+				ID:    id,
+				Type:  "function",
+				Function: FunctionCall{
+					Name:      name,
+					Arguments: args,
+				},
+			})
 		}
 
 		out <- StreamEvent{Done: true, ToolCalls: finalCalls, FinishReason: finishReason}
