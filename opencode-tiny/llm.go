@@ -212,7 +212,7 @@ func isTransientUpstreamError(err error) bool {
 	}
 	msg := err.Error()
 	for _, marker := range []string{
-		"502", "503", "upstream_error",
+		"502", "503", "504", "429", "upstream_error", "capacity", "overloaded", "rate limit",
 		"deadline exceeded", "context canceled",
 		"EOF",
 		"connection reset",
@@ -263,10 +263,20 @@ func streamChatWithRetry(ctx context.Context, cfg *Config, messages []Message, t
 	return out
 }
 
-// cleanModelName strips provider namespace prefixes (e.g. "openmind/zen-deepseek-v4-flash-free" -> "zen-deepseek-v4-flash-free").
+// cleanModelName strips provider namespace prefixes and resolves model aliases matching upstream OpenCode.
 func cleanModelName(model string) string {
+	model = strings.TrimSpace(model)
 	if idx := strings.LastIndex(model, "/"); idx != -1 {
-		return model[idx+1:]
+		model = model[idx+1:]
 	}
-	return model
+	switch model {
+	case "ox-alpha", "ox-alpha-free", "x-preview-f-free":
+		return "zen-x-preview-f-free"
+	case "deepseek-flash", "deepseek-v4-flash":
+		return "zen-go-deepseek-v4-flash"
+	case "hy3", "hy3-free":
+		return "zen-hy3-free"
+	default:
+		return model
+	}
 }
