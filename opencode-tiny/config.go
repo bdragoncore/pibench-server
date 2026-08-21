@@ -206,6 +206,27 @@ func getDefaultOpenMindConfig() string {
 
 const defaultOpenMindConfigBody = `
       "models": {
+        "zen-go-deepseek-v4-flash": {
+          "name": "zen-go-deepseek-v4-flash",
+          "reasoning": true,
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 1000000, "output": 384000 }
+        },
+        "zen-deepseek-v4-flash-free": {
+          "name": "zen-deepseek-v4-flash-free",
+          "reasoning": true,
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 1000000, "output": 384000 }
+        },
+        "zen-go-deepseek-v4-pro": {
+          "name": "zen-go-deepseek-v4-pro",
+          "reasoning": true,
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 1000000, "output": 384000 }
+        },
         "zen-hy3-free": {
           "name": "zen-hy3-free",
           "tool_call": true,
