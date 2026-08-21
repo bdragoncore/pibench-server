@@ -46,7 +46,7 @@
   let currentMessages = []; // stored raw messages for export
   let pendingAttachments = []; // Array of { id, kind: 'image'|'pasted', name, text, dataUrl }
 
-  // ---------- Scrolling System (matching openmind-browser-extension) ----------
+  // ---------- Scrolling System ----------
   /** @type {boolean} Whether the user was following the newest message before the last DOM update. */
   let followMessageBottom = true;
   let queuedScrollFrame = null;
@@ -407,7 +407,7 @@
     return '🧰';
   }
 
-  // Render or update Tool Card (matching openmind-browser-extension .msg-shell / .msg-tool)
+  // Render or update Tool Card
   function addToolCard(toolName, args, result = null, isDone = false) {
     if (toolName === 'superuser_access' || (result && result.includes('[SUPERUSER_REQUEST_REQUIRED]'))) {
       const reason = (result || '').replace('[SUPERUSER_REQUEST_REQUIRED]', '').trim() || args;
@@ -505,7 +505,7 @@
     scrollBottom();
   }
 
-  // Thinking Box Helper (matching openmind-browser-extension .msg-thinking)
+  // Thinking Box Helper
   function addThinkingBox(initialText = '', isStreaming = false) {
     if (log.querySelector('.welcome-container')) {
       log.innerHTML = '';

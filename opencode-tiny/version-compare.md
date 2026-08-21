@@ -11,7 +11,6 @@ This document tracks component versions, architectural alignment, and feature pa
 | **`opencode-tiny`** | `opencode-tiny` | `78908a8` | `master` | Lightweight Go server + embedded web UI running on `<host>:3457` |
 | **`references/opencode`** | `opencode-tiny/references/opencode` | `1b18a50` (`v1.2.25-1731`) | `main` | Official OpenCode upstream repository (git submodule) |
 | **`usb-server`** | `usb-server` | `a46ce71` | `master` | Reverse proxy and admin portal listening on `<host>:8080` |
-| **`opemind-browser-extension`** | `opemind-browser-extension` | `2939f2d` | `main` | UI color scheme reference (Midnight Navy theme) |
 
 ---
 
@@ -25,7 +24,7 @@ This document tracks component versions, architectural alignment, and feature pa
 | **Tool Execution Engine** | `bash`, `read`, `write`, `edit`, `apply_patch`, `glob`, `grep`, `question` | `bash`, `read`/`read_file`, `write`/`write_file`, `edit`/`edit_file` with alias resolution | **Fully Aligned** |
 | **Streaming Protocol** | SSE (`text`, `tool_call`, `tool_result`, `error`, `done`) | SSE real-time token streaming & interactive accordion tool cards | **100% Compatible** |
 | **Database & Persistence** | Drizzle SQLite (`.local/share/opencode/...`) | Modernc Go SQLite (`opencode-tiny.db`) storing sessions & turn messages | **Aligned** |
-| **Web UI Layout** | Floating center column | 100% Viewport edge-to-edge container with bottom-docked input bar & periwinkle accents | **Aligned with OpenMind Extension** |
+| **Web UI Layout** | Floating center column | 100% Viewport edge-to-edge container with bottom-docked input bar & periwinkle accents | **Optimized Fullscreen Layout** |
 
 ---
 

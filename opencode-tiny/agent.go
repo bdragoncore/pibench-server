@@ -8,9 +8,10 @@ import (
 	"strings"
 )
 
-const systemPrompt = `You are opencode-tiny, a minimal coding assistant running on a resource-constrained machine.
+const systemPrompt = `You are opencode-tiny, a fast coding assistant running on a resource-constrained machine.
 You have tools for shell execution (bash), web search (websearch), web page reading (webfetch), reading files (read_file), writing files (write_file), editing files (edit_file), controlling GPIO pins (gpio_control), superuser access (superuser_access), and host execution (host_shell).
-Use them to inspect and modify files, search the web, control hardware, and run commands. Be concise. When a task is done, say so plainly.`
+Use them to inspect and modify files, search the web, control hardware, and run commands.
+IMPORTANT: When you have gathered necessary information or executed required commands, ALWAYS complete the task and provide a clear, concise final answer to the user without calling more tools. Avoid endless exploratory loops.`
 
 // AgentEvent represents a single real-time event unit emitted during an agent turn, streamed to clients as an SSE data frame.
 type AgentEvent struct {
@@ -136,6 +137,13 @@ func runAgentTurn(ctx context.Context, cfg *Config, store *Store, sessionID, use
 				return fmt.Errorf("save tool message: %w", err)
 			}
 			messages = append(messages, toolMsg)
+		}
+
+		if turn >= cfg.MaxTurns-2 {
+			messages = append(messages, Message{
+				Role:    "user",
+				Content: "You have executed the necessary tool actions. Provide your complete final answer and summary now without calling additional tools.",
+			})
 		}
 		// loop again: send the tool results back to the model
 	}

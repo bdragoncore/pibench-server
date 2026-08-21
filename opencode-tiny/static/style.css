@@ -414,7 +414,7 @@ main {
   width: 100%;
 }
 
-/* Custom Scrollbar (matching openmind-browser-extension) */
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -719,7 +719,7 @@ pre.code-block {
   background: transparent;
 }
 
-/* ---------- Thinking Boxes (matching openmind-browser-extension .msg-thinking) ---------- */
+/* ---------- Thinking Boxes ---------- */
 .msg-thinking {
   align-self: flex-start;
   flex: 0 0 auto;
@@ -817,7 +817,7 @@ pre.code-block {
   word-break: break-word;
 }
 
-/* ---------- Tool Cards (matching openmind-browser-extension .msg-shell / .msg-tool) ---------- */
+/* ---------- Tool Cards ---------- */
 .tool-card {
   flex: 0 0 auto;
   flex-shrink: 0;

@@ -578,7 +578,7 @@ func toolGpioControl(ctx context.Context, cfg *Config, args map[string]any) stri
 	}
 }
 
-// toolWebSearch executes a live web search query across free, zero-auth open providers (DuckDuckGo Lite, SearXNG, Wikipedia).
+// toolWebSearch executes a live web search query across free, zero-auth open providers (Mojeek, SearXNG, DuckDuckGo, Wikipedia).
 func toolWebSearch(ctx context.Context, cfg *Config, args map[string]any) string {
 	query, _ := args["query"].(string)
 	if strings.TrimSpace(query) == "" {
@@ -600,18 +600,96 @@ func toolWebSearch(ctx context.Context, cfg *Config, args map[string]any) string
 		}
 	}
 
-	// 2. Primary free live web search via DuckDuckGo Lite
+	// 2. Primary free live web search via Mojeek (fast, zero-auth, unblocked privacy index)
+	if mojeekRes, err := searchMojeek(ctx, query, numResults); err == nil && len(mojeekRes) > 0 {
+		return mojeekRes
+	}
+
+	// 3. Secondary search via DuckDuckGo
 	res := searchDuckDuckGo(ctx, query, numResults)
 	if !strings.HasPrefix(res, "No search results") && !strings.HasPrefix(res, "error") {
 		return res
 	}
 
-	// 3. Resilient fallback: Wikipedia Search API for encyclopedic/factual topics
+	// 4. Resilient fallback: Wikipedia Search API for encyclopedic/factual topics
 	if wikiRes, err := searchWikipedia(ctx, query, numResults); err == nil && len(wikiRes) > 0 {
 		return wikiRes
 	}
 
 	return res
+}
+
+func searchMojeek(ctx context.Context, query string, maxResults int) (string, error) {
+	searchURL := "https://www.mojeek.com/search?" + url.Values{"q": {query}}.Encode()
+	req, err := http.NewRequestWithContext(ctx, "GET", searchURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+
+	client := &http.Client{Timeout: 8 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("mojeek status %d", resp.StatusCode)
+	}
+
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024))
+	if err != nil {
+		return "", err
+	}
+
+	htmlContent := string(bodyBytes)
+	type searchItem struct {
+		Title   string
+		URL     string
+		Snippet string
+	}
+
+	var results []searchItem
+	linkRe := regexp.MustCompile(`(?i)<a[^>]+class=['"]title['"][^>]+href=['"]([^'"]+)['"][^>]*>(.*?)</a>`)
+	snippetRe := regexp.MustCompile(`(?i)<p[^>]+class=['"]s['"][^>]*>(.*?)</p>`)
+
+	linkMatches := linkRe.FindAllStringSubmatch(htmlContent, -1)
+	snippetMatches := snippetRe.FindAllStringSubmatch(htmlContent, -1)
+
+	for i, m := range linkMatches {
+		if i >= maxResults {
+			break
+		}
+		rawURL := m[1]
+		title := cleanHTML(m[2])
+		snippet := ""
+		if i < len(snippetMatches) {
+			snippet = cleanHTML(snippetMatches[i][1])
+		}
+		results = append(results, searchItem{
+			Title:   title,
+			URL:     rawURL,
+			Snippet: snippet,
+		})
+	}
+
+	if len(results) == 0 {
+		return "", fmt.Errorf("no mojeek results")
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Search results for %q:\n\n", query))
+	for i, r := range results {
+		sb.WriteString(fmt.Sprintf("%d. %s\n   URL: %s\n", i+1, r.Title, r.URL))
+		if r.Snippet != "" {
+			sb.WriteString(fmt.Sprintf("   Summary: %s\n", r.Snippet))
+		}
+		sb.WriteString("\n")
+	}
+
+	return truncate(sb.String(), maxToolOutput), nil
 }
 
 func searchSearXNG(ctx context.Context, baseURL, query string, maxResults int) (string, error) {
