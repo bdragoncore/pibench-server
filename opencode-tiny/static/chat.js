@@ -957,7 +957,8 @@
       if (res.ok) {
         const data = await res.json();
         if (data.active_model) {
-          modelBadge.textContent = data.active_model;
+          if (modelBadge) modelBadge.textContent = data.active_model;
+          if (modelSelectBadge) modelSelectBadge.value = data.active_model.includes('/') ? data.active_model : `openmind/${data.active_model}`;
         }
         settingsStatus.textContent = 'Saved successfully!';
         setTimeout(() => {
