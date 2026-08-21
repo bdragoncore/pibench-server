@@ -158,7 +158,17 @@ select.badge-select option {
   background: var(--panel);
   color: var(--text);
   font-size: 0.85rem;
-  padding: 0.4rem;
+  font-weight: 500;
+  padding: 0.2rem 0.5rem;
+}
+
+select.badge-select optgroup, .form-input optgroup {
+  background: var(--surface-2);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.8rem;
+  font-style: normal;
+  padding: 0.4rem 0.2rem 0.2rem 0.4rem;
 }
 
 #header-controls {

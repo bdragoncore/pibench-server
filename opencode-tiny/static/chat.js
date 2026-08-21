@@ -735,17 +735,16 @@
       autoResizeInput();
       const arg = text.slice(6).trim();
       if (!arg) {
-        if (cachedModelList.length > 0) {
-          let html = `<strong>Available Models (click to swap):</strong><div class="model-pills-wrap" style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.5rem;">`;
-          cachedModelList.forEach(m => {
-            const shortName = m.replace(/^openmind\//, '');
-            html += `<button type="button" class="btn-sm model-pill-btn" data-model="${escapeHtml(m)}" style="background:var(--panel-2); border:1px solid var(--border-strong); color:var(--accent); border-radius:12px; padding:0.25rem 0.65rem; cursor:pointer; font-size:0.8rem; font-weight:600;">${escapeHtml(shortName)}</button>`;
+        const groups = parseModelsWithProviders(loadedConfigData ? loadedConfigData.raw_json : '');
+        let html = `<strong>OpenCode Model Catalog (click to swap):</strong>`;
+        for (const [providerName, models] of Object.entries(groups)) {
+          html += `<div style="margin-top:0.65rem;"><div style="font-size:0.75rem; font-weight:750; color:var(--accent); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.35rem;">⚡ ${escapeHtml(providerName)}</div><div class="model-pills-wrap" style="display:flex; flex-wrap:wrap; gap:0.4rem;">`;
+          models.forEach(m => {
+            html += `<button type="button" class="btn-sm model-pill-btn" data-model="${escapeHtml(m.id)}" style="background:var(--panel-2); border:1px solid var(--border-strong); color:var(--text); border-radius:12px; padding:0.25rem 0.65rem; cursor:pointer; font-size:0.8rem; font-weight:600;">${escapeHtml(m.shortName)}</button>`;
           });
-          html += `</div>`;
-          addSystemMsg(html);
-        } else {
-          addSystemMsg(`Use the header model selector dropdown menu to swap models.`);
+          html += `</div></div>`;
         }
+        addSystemMsg(html);
       } else {
         const matched = cachedModelList.find(m => m.toLowerCase().includes(arg.toLowerCase()));
         if (matched) {
@@ -979,47 +978,88 @@
     }
   }
 
-  function parseModelsFromConfig(cfgJsonStr) {
-    const models = [];
+  function parseModelsWithProviders(cfgJsonStr) {
+    const providerGroups = {};
+
+    function getProviderLabel(pKey, pVal) {
+      if (pVal && pVal.name) return pVal.name;
+      const k = (pKey || '').toLowerCase();
+      if (k === 'openmind') return 'OpenMind (Local Gateway)';
+      if (k === 'openai') return 'OpenAI';
+      if (k === 'anthropic') return 'Anthropic';
+      if (k === 'google') return 'Google Gemini';
+      if (k === 'ollama') return 'Ollama';
+      if (k === 'openrouter') return 'OpenRouter';
+      if (k === 'cerebras') return 'Cerebras';
+      if (k === 'groq') return 'Groq';
+      if (k === 'mistral') return 'Mistral AI';
+      if (k === 'xai') return 'xAI';
+      return pKey.charAt(0).toUpperCase() + pKey.slice(1);
+    }
+
     try {
       const cfg = JSON.parse(cfgJsonStr);
       if (cfg && cfg.provider) {
         for (const [pKey, pVal] of Object.entries(cfg.provider)) {
           if (pVal && pVal.models) {
+            const pLabel = getProviderLabel(pKey, pVal);
+            if (!providerGroups[pLabel]) {
+              providerGroups[pLabel] = [];
+            }
             for (const [mKey, mVal] of Object.entries(pVal.models)) {
-              models.push(`${pKey}/${mKey}`);
+              const fullID = `${pKey}/${mKey}`;
+              const displayName = (mVal && mVal.name) ? mVal.name : mKey;
+              providerGroups[pLabel].push({
+                id: fullID,
+                key: mKey,
+                provider: pKey,
+                name: displayName,
+                shortName: displayName.replace(/^openmind\//, '')
+              });
             }
           }
         }
       }
     } catch (e) {}
-    return models;
+
+    if (Object.keys(providerGroups).length === 0) {
+      providerGroups['OpenMind (Local Gateway)'] = [
+        { id: 'openmind/zen-hy3-free', key: 'zen-hy3-free', provider: 'openmind', name: 'zen-hy3-free', shortName: 'zen-hy3-free' }
+      ];
+    }
+
+    return providerGroups;
   }
 
   function updateModelDropdown(cfgJsonStr, currentModel) {
-    const models = parseModelsFromConfig(cfgJsonStr);
-    cachedModelList = models;
-
-    if (currentModel && !models.includes(currentModel) && !models.includes(`openmind/${currentModel}`)) {
-      models.unshift(currentModel.includes('/') ? currentModel : `openmind/${currentModel}`);
-    }
+    const groups = parseModelsWithProviders(cfgJsonStr);
+    
+    const allModels = [];
+    Object.values(groups).forEach(list => {
+      list.forEach(m => allModels.push(m.id));
+    });
+    cachedModelList = allModels;
 
     const dropdowns = [settingsModelSelect, modelSelectBadge].filter(Boolean);
 
     dropdowns.forEach(select => {
       select.innerHTML = '';
-      if (models.length === 0) {
-        const opt = document.createElement('option');
-        opt.value = currentModel || 'openmind/zen-hy3-free';
-        opt.textContent = select === modelSelectBadge ? opt.value.replace(/^openmind\//, '') : opt.value;
-        select.appendChild(opt);
-      } else {
+
+      for (const [providerName, models] of Object.entries(groups)) {
+        const optGroup = document.createElement('optgroup');
+        optGroup.label = providerName;
+
         models.forEach(m => {
           const opt = document.createElement('option');
-          opt.value = m;
-          opt.textContent = select === modelSelectBadge ? m.replace(/^openmind\//, '') : m;
-          select.appendChild(opt);
+          opt.value = m.id;
+          opt.textContent = select === modelSelectBadge ? m.shortName : m.id;
+          if (currentModel && (currentModel === m.id || currentModel === m.key)) {
+            opt.selected = true;
+          }
+          optGroup.appendChild(opt);
         });
+
+        select.appendChild(optGroup);
       }
 
       if (currentModel) {
