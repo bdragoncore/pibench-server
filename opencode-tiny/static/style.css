@@ -821,6 +821,38 @@ pre.code-block {
 
 #status-bar.hidden { display: none; }
 
+.btn-stop {
+  background: rgba(239, 83, 80, 0.15);
+  border: 1px solid rgba(239, 83, 80, 0.4);
+  color: var(--error);
+  font-size: 0.76rem;
+  font-weight: 650;
+  border-radius: 12px;
+  padding: 0.15rem 0.6rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.15s ease;
+  margin-left: 0.3rem;
+}
+
+.btn-stop:hover {
+  background: rgba(239, 83, 80, 0.3);
+  border-color: var(--error);
+  color: #ff8a80;
+}
+
+#send-btn.generating {
+  background: rgba(239, 83, 80, 0.2);
+  border-color: var(--error);
+  color: var(--error);
+}
+#send-btn.generating:hover {
+  background: rgba(239, 83, 80, 0.35);
+  color: #ff8a80;
+}
+
 .spinner {
   width: 14px;
   height: 14px;

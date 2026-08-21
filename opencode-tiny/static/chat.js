@@ -35,10 +35,12 @@
   const modelSelectBadge = document.getElementById('model-select-badge');
   const statusBar = document.getElementById('status-bar');
   const statusText = document.getElementById('status-text');
+  const stopBtn = document.getElementById('stop-btn');
 
   let currentSessionId = null;
   let activeToolCards = {}; // tcKey -> element
   let isGenerating = false;
+  let activeAbortController = null;
   let currentMessages = []; // stored raw messages for export
 
   // Escaping helper
@@ -629,6 +631,13 @@
     });
   }
 
+  function stopGeneration() {
+    if (activeAbortController) {
+      activeAbortController.abort();
+      activeAbortController = null;
+    }
+  }
+
   // Main Submit handler
   async function sendMessage(text) {
     if (!text || isGenerating) return;
@@ -669,8 +678,14 @@
 
     input.value = '';
     autoResizeInput();
-    sendBtn.disabled = true;
+
+    activeAbortController = new AbortController();
     isGenerating = true;
+
+    sendBtn.classList.add('generating');
+    sendBtn.innerHTML = `<span>Stop</span><span style="font-size:0.85rem; margin-left:0.2rem;">🛑</span>`;
+    sendBtn.disabled = false;
+    sendBtn.title = "Click to stop generation";
 
     statusBar.classList.remove('hidden');
     statusText.textContent = 'OpenCode is thinking...';
@@ -685,6 +700,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: currentSessionId, message: text }),
+        signal: activeAbortController.signal,
       });
 
       const sid = res.headers.get('X-Session-Id');
@@ -729,10 +745,18 @@
         }
       }
     } catch (err) {
-      addMsg('error', String(err));
+      if (err.name === 'AbortError') {
+        addSystemMsg('🛑 Generation stopped by user.');
+        statusText.textContent = 'Stopped';
+      } else {
+        addMsg('error', String(err));
+      }
     } finally {
-      sendBtn.disabled = false;
+      activeAbortController = null;
       isGenerating = false;
+      sendBtn.classList.remove('generating');
+      sendBtn.innerHTML = `<span>Send</span><svg class="send-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>`;
+      sendBtn.title = "Send message";
       statusBar.classList.add('hidden');
       input.focus();
     }
@@ -740,9 +764,17 @@
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
+    if (isGenerating) {
+      stopGeneration();
+      return;
+    }
     const text = input.value.trim();
     if (text) sendMessage(text);
   });
+
+  if (stopBtn) {
+    stopBtn.addEventListener('click', stopGeneration);
+  }
 
   // Init
   loadInfo();
