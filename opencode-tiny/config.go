@@ -146,7 +146,7 @@ func loadConfig() (*Config, error) {
 		cfg.BaseURL = envOr("OPENMIND_BASE_URL", "http://pibox.local:5000/v1")
 	}
 	if cfg.Model == "" {
-		cfg.Model = "zen-deepseek-v4-flash-free"
+		cfg.Model = "zen-hy3-free"
 	}
 
 	// Ensure workdir exists
@@ -190,8 +190,8 @@ func getDefaultOpenMindConfig() string {
 	baseURL := envOr("OPENMIND_BASE_URL", envOr("OPENCODE_TINY_BASE_URL", "http://pibox.local:5000/v1"))
 	return fmt.Sprintf(`{
   "$schema": "https://opencode.ai/config.json",
-  "model": "openmind/zen-deepseek-v4-flash-free",
-  "small_model": "openmind/zen-deepseek-v4-flash-free",
+  "model": "openmind/zen-hy3-free",
+  "small_model": "openmind/zen-hy3-free",
   "provider": {
     "openmind": {
       "name": "OpenMind (local)",
@@ -203,15 +203,14 @@ func getDefaultOpenMindConfig() string {
 
 const defaultOpenMindConfigBody = `
       "models": {
-        "zen-deepseek-v4-flash-free": {
-          "name": "zen-deepseek-v4-flash-free",
-          "reasoning": true,
-          "tool_call": true,
-          "vision": true,
-          "limit": { "context": 1000000, "output": 384000 }
-        },
         "zen-hy3-free": {
           "name": "zen-hy3-free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 200000, "output": 32000 }
+        },
+        "zen-mimo-v2.5-free": {
+          "name": "zen-mimo-v2.5-free",
           "tool_call": true,
           "vision": true,
           "limit": { "context": 200000, "output": 32000 }
@@ -228,18 +227,72 @@ const defaultOpenMindConfigBody = `
           "vision": true,
           "limit": { "context": 1000000, "output": 128000 }
         },
-        "zen-mimo-v2.5-free": {
-          "name": "zen-mimo-v2.5-free",
+        "zen-x-preview-f-free": {
+          "name": "zen-x-preview-f-free",
           "tool_call": true,
           "vision": true,
           "limit": { "context": 200000, "output": 32000 }
         },
-        "zen-laguna-s-2.1-free": {
-          "name": "zen-laguna-s-2.1-free",
-          "reasoning": true,
+        "zen-muse-spark-1.2-contributor-free": {
+          "name": "zen-muse-spark-1.2-contributor-free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 1000000, "output": 128000 }
+        },
+        "kilo-stepfun/step-3.7-flash:free": {
+          "name": "kilo-stepfun/step-3.7-flash:free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 200000, "output": 32000 }
+        },
+        "kilo-inclusionai/ling-3.0-flash:free": {
+          "name": "kilo-inclusionai/ling-3.0-flash:free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 200000, "output": 32000 }
+        },
+        "kilo-poolside/laguna-s-2.1:free": {
+          "name": "kilo-poolside/laguna-s-2.1:free",
           "tool_call": true,
           "vision": true,
           "limit": { "context": 256000, "output": 32000 }
+        },
+        "kilo-poolside/laguna-xs-2.1:free": {
+          "name": "kilo-poolside/laguna-xs-2.1:free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 256000, "output": 32000 }
+        },
+        "kilo-cohere/north-mini-code:free": {
+          "name": "kilo-cohere/north-mini-code:free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 128000, "output": 32000 }
+        },
+        "kilo-nvidia/nemotron-3-ultra-550b-a55b:free": {
+          "name": "kilo-nvidia/nemotron-3-ultra-550b-a55b:free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 1000000, "output": 128000 }
+        },
+        "kilo-nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+          "name": "kilo-nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+          "reasoning": true,
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 200000, "output": 32000 }
+        },
+        "kilo-nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "kilo-nvidia/nemotron-3-super-120b-a12b:free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 200000, "output": 32000 }
+        },
+        "kilo-openrouter/free": {
+          "name": "kilo-openrouter/free",
+          "tool_call": true,
+          "vision": true,
+          "limit": { "context": 200000, "output": 32000 }
         },
         "claude-sonnet-4-6": {
           "name": "claude-sonnet-4-6",
