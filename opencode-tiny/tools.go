@@ -578,7 +578,7 @@ func toolGpioControl(ctx context.Context, cfg *Config, args map[string]any) stri
 	}
 }
 
-// toolWebSearch executes a live web search query via DuckDuckGo Lite (or Exa API if EXA_API_KEY is provided).
+// toolWebSearch executes a live web search query across free, zero-auth open providers (DuckDuckGo Lite, SearXNG, Wikipedia).
 func toolWebSearch(ctx context.Context, cfg *Config, args map[string]any) string {
 	query, _ := args["query"].(string)
 	if strings.TrimSpace(query) == "" {
@@ -593,7 +593,129 @@ func toolWebSearch(ctx context.Context, cfg *Config, args map[string]any) string
 		}
 	}
 
-	return searchDuckDuckGo(ctx, query, numResults)
+	// 1. If custom SearXNG instance is provided via SEARXNG_URL, query it first
+	if searxURL := os.Getenv("SEARXNG_URL"); searxURL != "" {
+		if res, err := searchSearXNG(ctx, searxURL, query, numResults); err == nil && len(res) > 0 {
+			return res
+		}
+	}
+
+	// 2. Primary free live web search via DuckDuckGo Lite
+	res := searchDuckDuckGo(ctx, query, numResults)
+	if !strings.HasPrefix(res, "No search results") && !strings.HasPrefix(res, "error") {
+		return res
+	}
+
+	// 3. Resilient fallback: Wikipedia Search API for encyclopedic/factual topics
+	if wikiRes, err := searchWikipedia(ctx, query, numResults); err == nil && len(wikiRes) > 0 {
+		return wikiRes
+	}
+
+	return res
+}
+
+func searchSearXNG(ctx context.Context, baseURL, query string, maxResults int) (string, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	q.Set("q", query)
+	q.Set("format", "json")
+	u.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "opencode-tiny/1.0")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("searxng status %d", resp.StatusCode)
+	}
+
+	var data struct {
+		Results []struct {
+			Title   string `json:"title"`
+			URL     string `json:"url"`
+			Content string `json:"content"`
+		} `json:"results"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return "", err
+	}
+	if len(data.Results) == 0 {
+		return "", fmt.Errorf("no results")
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("SearXNG Search results for %q:\n\n", query))
+	for i, r := range data.Results {
+		if i >= maxResults {
+			break
+		}
+		sb.WriteString(fmt.Sprintf("%d. %s\n   URL: %s\n", i+1, r.Title, r.URL))
+		if r.Content != "" {
+			sb.WriteString(fmt.Sprintf("   Summary: %s\n", cleanHTML(r.Content)))
+		}
+		sb.WriteString("\n")
+	}
+	return truncate(sb.String(), maxToolOutput), nil
+}
+
+func searchWikipedia(ctx context.Context, query string, maxResults int) (string, error) {
+	apiURL := fmt.Sprintf("https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=%s&utf8=&format=json", url.QueryEscape(query))
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "opencode-tiny/1.0 (Raspberry Pi; AI Agent)")
+
+	client := &http.Client{Timeout: 8 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var data struct {
+		Query struct {
+			Search []struct {
+				Title   string `json:"title"`
+				Snippet string `json:"snippet"`
+				PageID  int    `json:"pageid"`
+			} `json:"search"`
+		} `json:"query"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return "", err
+	}
+
+	if len(data.Query.Search) == 0 {
+		return "", fmt.Errorf("no wiki results")
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Wikipedia Search results for %q:\n\n", query))
+	for i, r := range data.Query.Search {
+		if i >= maxResults {
+			break
+		}
+		wikiURL := fmt.Sprintf("https://en.wikipedia.org/wiki/%s", url.PathEscape(strings.ReplaceAll(r.Title, " ", "_")))
+		sb.WriteString(fmt.Sprintf("%d. %s\n   URL: %s\n", i+1, r.Title, wikiURL))
+		if r.Snippet != "" {
+			sb.WriteString(fmt.Sprintf("   Summary: %s\n", cleanHTML(r.Snippet)))
+		}
+		sb.WriteString("\n")
+	}
+	return truncate(sb.String(), maxToolOutput), nil
 }
 
 func searchDuckDuckGo(ctx context.Context, query string, maxResults int) string {
@@ -674,7 +796,7 @@ func searchDuckDuckGo(ctx context.Context, query string, maxResults int) string 
 	return truncate(sb.String(), maxToolOutput)
 }
 
-// toolWebFetch fetches a target URL and extracts readable text or markdown content.
+// toolWebFetch fetches a target URL and extracts readable text or markdown content using Jina Reader with pure Go fallback.
 func toolWebFetch(ctx context.Context, cfg *Config, args map[string]any) string {
 	rawURL, _ := args["url"].(string)
 	if strings.TrimSpace(rawURL) == "" {
@@ -684,6 +806,22 @@ func toolWebFetch(ctx context.Context, cfg *Config, args map[string]any) string 
 		rawURL = "https://" + rawURL
 	}
 
+	// 1. Try Jina AI Reader (free, zero auth, converts web pages & PDFs into clean structured Markdown)
+	jinaURL := "https://r.jina.ai/" + rawURL
+	if jinaReq, err := http.NewRequestWithContext(ctx, "GET", jinaURL, nil); err == nil {
+		jinaReq.Header.Set("Accept", "text/plain")
+		jinaReq.Header.Set("User-Agent", "opencode-tiny/1.0 (Raspberry Pi; AI Agent)")
+		client := &http.Client{Timeout: 12 * time.Second}
+		if jinaResp, err := client.Do(jinaReq); err == nil && jinaResp.StatusCode == http.StatusOK {
+			defer jinaResp.Body.Close()
+			bodyBytes, err := io.ReadAll(io.LimitReader(jinaResp.Body, maxReadBytes))
+			if err == nil && len(bodyBytes) > 50 {
+				return truncate(string(bodyBytes), maxToolOutput)
+			}
+		}
+	}
+
+	// 2. Direct HTTP GET with native HTML-to-Markdown scraper fallback
 	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
 	if err != nil {
 		return fmt.Sprintf("error creating request: %v", err)
