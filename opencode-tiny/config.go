@@ -494,6 +494,17 @@ func syncModelsFromGateway(cfg *Config) (int, error) {
 		count++
 	}
 
+	delete(modelsMap, "zen-deepseek-v4-flash-free")
+	delete(modelsMap, "deepseek-v4-flash-free")
+
+	// Ensure top-level model and small_model do not point to deprecated flash-free
+	if mStr, ok := doc["model"].(string); ok && strings.Contains(mStr, "deepseek-v4-flash-free") {
+		doc["model"] = "openmind/zen-hy3-free"
+	}
+	if smStr, ok := doc["small_model"].(string); ok && strings.Contains(smStr, "deepseek-v4-flash-free") {
+		doc["small_model"] = "openmind/zen-hy3-free"
+	}
+
 	updatedBytes, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return 0, fmt.Errorf("marshal updated config: %w", err)
@@ -503,7 +514,7 @@ func syncModelsFromGateway(cfg *Config) (int, error) {
 		return 0, fmt.Errorf("save config: %w", err)
 	}
 
-	if cfg.Model == "" && firstFreeModel != "" {
+	if (cfg.Model == "" || strings.Contains(cfg.Model, "deepseek-v4-flash-free")) && firstFreeModel != "" {
 		cfg.Model = firstFreeModel
 	}
 
