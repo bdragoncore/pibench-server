@@ -15,7 +15,7 @@ import (
 // Message represents a single chat message formatted in the OpenAI Chat Completions API schema.
 type Message struct {
 	Role       string     `json:"role"`                   // Message role: "system", "user", "assistant", or "tool"
-	Content    any        `json:"content,omitempty"`      // Text content string OR multimodal []any
+	Content    any        `json:"content"`                // Text content string OR multimodal []any (must not be omitted)
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`   // Array of tool calls emitted by the assistant
 	ToolCallID string     `json:"tool_call_id,omitempty"` // ID of the tool call this message responds to (for role="tool")
 }
@@ -78,6 +78,39 @@ type StreamEvent struct {
 	Err          error      // Non-nil if a stream or upstream error occurred
 }
 
+// sanitizeMessages filters out malformed or empty messages that cause upstream HTTP 400 errors.
+func sanitizeMessages(msgs []Message) []Message {
+	clean := make([]Message, 0, len(msgs))
+	for _, m := range msgs {
+		switch m.Role {
+		case "assistant":
+			// If assistant message has no tool calls and empty content, don't send an empty shell
+			if len(m.ToolCalls) == 0 {
+				if str, ok := m.Content.(string); ok && strings.TrimSpace(str) == "" {
+					continue
+				}
+				if m.Content == nil {
+					continue
+				}
+			}
+			clean = append(clean, m)
+		case "tool":
+			if str, ok := m.Content.(string); ok && str == "" {
+				m.Content = "(no output)"
+			}
+			clean = append(clean, m)
+		case "user", "system":
+			if m.Content == nil {
+				m.Content = ""
+			}
+			clean = append(clean, m)
+		default:
+			clean = append(clean, m)
+		}
+	}
+	return clean
+}
+
 // streamChat invokes the OpenAI-compatible /chat/completions endpoint with stream=true and
 // yields StreamEvents on the returned channel as content deltas and tool-call fragments arrive.
 func streamChat(ctx context.Context, cfg *Config, messages []Message, tools []ToolSpec) <-chan StreamEvent {
@@ -91,9 +124,10 @@ func streamChat(ctx context.Context, cfg *Config, messages []Message, tools []To
 		stallTimer := time.AfterFunc(30*time.Second, cancel)
 		defer stallTimer.Stop()
 
+		cleanedMsgs := sanitizeMessages(messages)
 		reqBody := chatRequest{
 			Model:    cleanModelName(cfg.Model),
-			Messages: messages,
+			Messages: cleanedMsgs,
 			Tools:    tools,
 			Stream:   true,
 		}
