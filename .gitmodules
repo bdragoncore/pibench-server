@@ -1,0 +1,4 @@
+[submodule "opencode-tiny/references/opencode"]
+	path = opencode-tiny/references/opencode
+	url = https://github.com/anomalyco/opencode.git
+	branch = dev
