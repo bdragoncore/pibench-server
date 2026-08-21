@@ -981,9 +981,15 @@
   function parseModelsWithProviders(cfgJsonStr) {
     const providerGroups = {};
 
-    function getProviderLabel(pKey, pVal) {
-      if (pVal && pVal.name) return pVal.name;
+    function getProviderLabel(mKey, pKey, pVal) {
       const k = (pKey || '').toLowerCase();
+      const m = (mKey || '').toLowerCase();
+
+      if (m.includes('free') || (m.startsWith('zen-') && m.includes('free'))) {
+        return '🆓 Zen Free Models';
+      }
+
+      if (pVal && pVal.name) return pVal.name;
       if (k === 'openmind') return 'OpenMind (Local Gateway)';
       if (k === 'openai') return 'OpenAI';
       if (k === 'anthropic') return 'Anthropic';
@@ -1002,11 +1008,11 @@
       if (cfg && cfg.provider) {
         for (const [pKey, pVal] of Object.entries(cfg.provider)) {
           if (pVal && pVal.models) {
-            const pLabel = getProviderLabel(pKey, pVal);
-            if (!providerGroups[pLabel]) {
-              providerGroups[pLabel] = [];
-            }
             for (const [mKey, mVal] of Object.entries(pVal.models)) {
+              const pLabel = getProviderLabel(mKey, pKey, pVal);
+              if (!providerGroups[pLabel]) {
+                providerGroups[pLabel] = [];
+              }
               const fullID = `${pKey}/${mKey}`;
               const displayName = (mVal && mVal.name) ? mVal.name : mKey;
               providerGroups[pLabel].push({
@@ -1022,13 +1028,21 @@
       }
     } catch (e) {}
 
-    if (Object.keys(providerGroups).length === 0) {
-      providerGroups['OpenMind (Local Gateway)'] = [
-        { id: 'openmind/zen-hy3-free', key: 'zen-hy3-free', provider: 'openmind', name: 'zen-hy3-free', shortName: 'zen-hy3-free' }
+    const orderedGroups = {};
+    if (providerGroups['🆓 Zen Free Models']) {
+      orderedGroups['🆓 Zen Free Models'] = providerGroups['🆓 Zen Free Models'];
+      delete providerGroups['🆓 Zen Free Models'];
+    }
+    Object.assign(orderedGroups, providerGroups);
+
+    if (Object.keys(orderedGroups).length === 0) {
+      orderedGroups['🆓 Zen Free Models'] = [
+        { id: 'openmind/zen-hy3-free', key: 'zen-hy3-free', provider: 'openmind', name: 'zen-hy3-free', shortName: 'zen-hy3-free' },
+        { id: 'openmind/zen-x-preview-f-free', key: 'zen-x-preview-f-free', provider: 'openmind', name: 'zen-x-preview-f-free', shortName: 'zen-x-preview-f-free' }
       ];
     }
 
-    return providerGroups;
+    return orderedGroups;
   }
 
   function updateModelDropdown(cfgJsonStr, currentModel) {
