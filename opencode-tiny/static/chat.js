@@ -35,7 +35,6 @@
   const modelSelectBadge = document.getElementById('model-select-badge');
   const statusBar = document.getElementById('status-bar');
   const statusText = document.getElementById('status-text');
-  const stopBtn = document.getElementById('stop-btn');
   const attachmentTray = document.getElementById('attachment-tray');
   const btnAttach = document.getElementById('btn-attach');
   const attachFileInput = document.getElementById('attach-file-input');
@@ -948,10 +947,6 @@
     const text = input.value.trim();
     sendMessage(text);
   });
-
-  if (stopBtn) {
-    stopBtn.addEventListener('click', stopGeneration);
-  }
 
   // Init
   loadInfo();
