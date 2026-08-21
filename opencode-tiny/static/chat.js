@@ -1,4 +1,17 @@
 (() => {
+  // Polyfill crypto.randomUUID for non-secure HTTP contexts
+  if (typeof window !== 'undefined') {
+    if (!window.crypto) window.crypto = {};
+    if (!window.crypto.randomUUID) {
+      window.crypto.randomUUID = function() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+    }
+  }
+
   const log = document.getElementById('log');
   const form = document.getElementById('chat-form');
   const input = document.getElementById('chat-input');
@@ -16,6 +29,7 @@
   const optClear = document.getElementById('opt-clear');
   const optExportJson = document.getElementById('opt-export-json');
   const optExportMd = document.getElementById('opt-export-md');
+  const optToggleTools = document.getElementById('opt-toggle-tools');
   const optSyncModels = document.getElementById('opt-sync-models');
   const modelBadge = document.getElementById('model-badge');
   const modelSelectBadge = document.getElementById('model-select-badge');
@@ -604,14 +618,16 @@
     dlAnchor.remove();
   });
 
-  optToggleTools.addEventListener('click', () => {
-    const cards = log.querySelectorAll('.tool-card');
-    const anyExpanded = Array.from(cards).some(c => !c.classList.contains('collapsed'));
-    cards.forEach(c => {
-      if (anyExpanded) c.classList.add('collapsed');
-      else c.classList.remove('collapsed');
+  if (optToggleTools) {
+    optToggleTools.addEventListener('click', () => {
+      const cards = log.querySelectorAll('.tool-card');
+      const anyExpanded = Array.from(cards).some(c => !c.classList.contains('collapsed'));
+      cards.forEach(c => {
+        if (anyExpanded) c.classList.add('collapsed');
+        else c.classList.remove('collapsed');
+      });
     });
-  });
+  }
 
   // Main Submit handler
   async function sendMessage(text) {
