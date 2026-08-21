@@ -896,7 +896,7 @@
       try {
         const parsed = JSON.parse(loadedConfigData.default_config);
         jsonEditorTextarea.value = JSON.stringify(parsed, null, 2);
-        updateModelDropdown(jsonEditorTextarea.value, 'openmind/zen-deepseek-v4-flash-free');
+        updateModelDropdown(jsonEditorTextarea.value, 'openmind/zen-hy3-free');
         jsonEditorError.classList.add('hidden');
         settingsStatus.textContent = 'Loaded OpenMind defaults from pibox:5000 spec';
         setTimeout(() => { settingsStatus.textContent = ''; }, 3000);

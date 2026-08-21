@@ -92,14 +92,14 @@ Access the web interface at **`http://<host>:3457/`**.
 `pibench-server` resolves settings using the following precedence order:
 1. Environment variables (`OPENCODE_TINY_*`, `OPENMIND_BASE_URL`, `.env`)
 2. `~/.config/opencode/opencode.json` provider config
-3. Fallback defaults (`http://pibox.local:5000/v1`, `zen-deepseek-v4-flash-free`)
+3. Fallback defaults (`http://pibox.local:5000/v1`, `zen-hy3-free`)
 
 | Environment Variable | Default Value | Description |
 | :--- | :--- | :--- |
 | `OPENCODE_TINY_CONFIG` | `~/.config/opencode/opencode.json` | Path to OpenCode configuration file |
 | `OPENMIND_BASE_URL` | `http://pibox.local:5000/v1` | OpenAI-compatible gateway base URL |
 | `OPENCODE_TINY_BASE_URL` | (Derived from config or `OPENMIND_BASE_URL`) | Override provider `/v1` endpoint URL |
-| `OPENCODE_TINY_MODEL` | `zen-deepseek-v4-flash-free` | Override active LLM model ID |
+| `OPENCODE_TINY_MODEL` | `zen-hy3-free` | Override active LLM model ID |
 | `OPENCODE_TINY_API_KEY` | *(Empty)* | Optional upstream API bearer key |
 | `OPENCODE_TINY_WORKDIR` | `$HOME` | Default working directory for tool execution |
 | `OPENCODE_TINY_PORT` | `3457` | HTTP listening port |

@@ -213,13 +213,6 @@ const defaultOpenMindConfigBody = `
           "vision": true,
           "limit": { "context": 1000000, "output": 384000 }
         },
-        "zen-deepseek-v4-flash-free": {
-          "name": "zen-deepseek-v4-flash-free",
-          "reasoning": true,
-          "tool_call": true,
-          "vision": true,
-          "limit": { "context": 1000000, "output": 384000 }
-        },
         "zen-go-deepseek-v4-pro": {
           "name": "zen-go-deepseek-v4-pro",
           "reasoning": true,
