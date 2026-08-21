@@ -721,6 +721,8 @@ pre.code-block {
 
 /* ---------- Tool Cards (matching openmind-browser-extension .msg-shell / .msg-tool) ---------- */
 .tool-card {
+  flex: 0 0 auto;
+  flex-shrink: 0;
   align-self: flex-start;
   width: 100%;
   max-width: 100%;
