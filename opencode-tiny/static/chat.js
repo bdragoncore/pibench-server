@@ -393,7 +393,21 @@
     return card;
   }
 
-  // Render or update Tool Card
+  function getToolIcon(toolName) {
+    const t = (toolName || '').toLowerCase();
+    if (t.includes('bash') || t.includes('sh')) return '💻';
+    if (t.includes('websearch') || t.includes('search')) return '🔍';
+    if (t.includes('webfetch') || t.includes('fetch')) return '🌐';
+    if (t.includes('read')) return '📄';
+    if (t.includes('write')) return '📝';
+    if (t.includes('edit')) return '✏️';
+    if (t.includes('gpio')) return '⚡';
+    if (t.includes('host')) return '🖥️';
+    if (t.includes('super') || t.includes('sudo')) return '🔑';
+    return '🧰';
+  }
+
+  // Render or update Tool Card (matching openmind-browser-extension .msg-shell / .msg-tool)
   function addToolCard(toolName, args, result = null, isDone = false) {
     if (toolName === 'superuser_access' || (result && result.includes('[SUPERUSER_REQUEST_REQUIRED]'))) {
       const reason = (result || '').replace('[SUPERUSER_REQUEST_REQUIRED]', '').trim() || args;
@@ -408,15 +422,16 @@
     const tcKey = toolName + (args ? '_' + args.slice(0, 30) : '');
     let card = activeToolCards[toolName] || activeToolCards[tcKey];
     const displayText = result !== null ? (result.trim() || '(no output)') : (isDone ? '(no output)' : 'Executing command...');
+    const icon = getToolIcon(toolName);
 
     if (!card) {
       card = document.createElement('div');
-      card.className = 'tool-card';
+      card.className = 'tool-card' + (isDone ? '' : ' running');
       card.innerHTML = `
         <div class="tool-card-header">
           <div class="tool-card-title">
-            <span>🧰</span>
-            <span class="tool-name">${escapeHtml(toolName)}</span>
+            <span class="tool-icon">${icon}</span>
+            <span class="tool-name">${escapeHtml(toolName || 'COMMAND')}</span>
             <span class="tool-args">${escapeHtml(args || '')}</span>
           </div>
           <div class="tool-card-controls">
@@ -443,12 +458,19 @@
       const statusTag = card.querySelector('.tool-status-tag');
       const outputPre = card.querySelector('.tool-output');
       const argsSpan = card.querySelector('.tool-args');
+      const nameSpan = card.querySelector('.tool-name');
+      const iconSpan = card.querySelector('.tool-icon');
 
+      if (toolName && toolName !== 'tool' && nameSpan) {
+        nameSpan.textContent = toolName;
+        if (iconSpan) iconSpan.textContent = getToolIcon(toolName);
+      }
       if (args && argsSpan && !argsSpan.textContent) {
         argsSpan.textContent = args;
       }
 
       if (isDone) {
+        card.classList.remove('running');
         statusTag.className = 'tool-status-tag done';
         statusTag.textContent = 'DONE';
         if (result !== null) {
@@ -663,8 +685,17 @@
       for (const m of msgs || []) {
         if (m.role === 'user') {
           addMsg('user', m.content);
-        } else if (m.role === 'assistant' && m.content) {
-          addMsg('assistant', m.content);
+        } else if (m.role === 'assistant') {
+          if (m.content) {
+            addMsg('assistant', m.content);
+          }
+          if (m.tool_calls && m.tool_calls.length > 0) {
+            for (const tc of m.tool_calls) {
+              const tName = tc.function ? tc.function.name : 'tool';
+              const tArgs = tc.function ? tc.function.arguments : '';
+              addToolCard(tName, tArgs, null, false);
+            }
+          }
         } else if (m.role === 'tool') {
           addToolCard('tool', '', m.content, true);
         }

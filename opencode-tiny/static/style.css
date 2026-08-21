@@ -719,85 +719,144 @@ pre.code-block {
   background: transparent;
 }
 
-/* ---------- Tool Cards ---------- */
+/* ---------- Tool Cards (matching openmind-browser-extension .msg-shell / .msg-tool) ---------- */
 .tool-card {
   align-self: flex-start;
   width: 100%;
   max-width: 100%;
-  background: var(--tool-bg);
-  border: 1px solid var(--tool-border);
-  border-radius: var(--radius-sm);
+  min-width: min(320px, 100%);
+  background: #141a28;
+  border: 1px solid #2a3a50;
+  border-radius: 8px;
   overflow: hidden;
   font-size: 0.84rem;
-  margin: 0.25rem 0;
+  margin: 0.6rem 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tool-card.running {
+  border-color: rgba(224, 179, 77, 0.6);
+  box-shadow: 0 0 12px rgba(224, 179, 77, 0.15);
 }
 
 .tool-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.45rem 0.75rem;
-  background: rgba(224, 179, 77, 0.08);
+  padding: 8px 12px;
+  min-height: 38px;
+  background: #1c2438;
+  border-bottom: 1px solid #2a3a50;
   cursor: pointer;
   user-select: none;
+  transition: background 0.15s ease;
+}
+
+.tool-card.collapsed .tool-card-header {
+  border-bottom: none;
+  border-radius: 8px;
+}
+
+.tool-card-header:hover {
+  background: #242e46;
 }
 
 .tool-card-title {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--tool);
+  color: #7c8aff;
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.tool-card-title .tool-icon {
+  font-size: 0.95rem;
+  flex: 0 0 auto;
 }
 
 .tool-card-title .tool-name {
   color: #f7d070;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex: 0 0 auto;
 }
 
 .tool-card-title .tool-args {
-  color: var(--muted);
+  color: #94a3b8;
   font-weight: 400;
   font-size: 0.78rem;
-  max-width: 450px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1 1 auto;
+  max-width: 500px;
 }
 
 .tool-card-controls {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex: 0 0 auto;
 }
 
 .tool-status-tag {
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: 0.1rem 0.4rem;
+  padding: 0.15rem 0.45rem;
   border-radius: 4px;
-  font-weight: 600;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .tool-status-tag.running {
   background: rgba(224, 179, 77, 0.2);
-  color: var(--tool);
+  color: #f7d070;
+  border: 1px solid rgba(224, 179, 77, 0.35);
+  animation: toolPulse 1.4s ease-in-out infinite;
 }
+
+.tool-status-tag.running::before {
+  content: '●';
+  font-size: 0.65rem;
+}
+
 .tool-status-tag.done {
-  background: rgba(76, 175, 122, 0.15);
-  color: var(--success);
+  background: rgba(76, 175, 122, 0.18);
+  color: #4caf7a;
+  border: 1px solid rgba(76, 175, 122, 0.35);
+}
+
+.tool-status-tag.done::before {
+  content: '✓';
+  font-size: 0.7rem;
+}
+
+@keyframes toolPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 
 .tool-toggle-btn {
   background: transparent;
   border: none;
-  color: var(--muted);
+  color: #8a8ac0;
   font-size: 0.75rem;
-  padding: 0;
+  padding: 2px 4px;
   cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, color 0.15s ease;
+}
+
+.tool-toggle-btn:hover {
+  color: #fff;
 }
 
 .tool-card.collapsed .tool-toggle-btn {
@@ -805,9 +864,9 @@ pre.code-block {
 }
 
 .tool-card-body {
-  padding: 0.6rem 0.75rem;
-  border-top: 1px solid rgba(224, 179, 77, 0.2);
-  background: rgba(16, 24, 40, 0.6);
+  padding: 10px 12px;
+  background: #0e121e;
+  border-radius: 0 0 8px 8px;
 }
 
 .tool-card.collapsed .tool-card-body {
@@ -817,13 +876,30 @@ pre.code-block {
 .tool-output {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.8rem;
-  color: #eedcae;
+  line-height: 1.5;
+  color: #d1d5db;
+  background: #090c14;
+  border: 1px solid #1e2638;
+  border-radius: 6px;
+  padding: 8px 10px;
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 320px;
+  max-height: 280px;
   overflow-y: auto;
   margin: 0;
-  padding: 0;
+  scrollbar-width: thin;
+}
+
+.tool-output::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.tool-output::-webkit-scrollbar-thumb {
+  background: #2a3a50;
+  border-radius: 3px;
+}
+.tool-output::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* Error messages */
