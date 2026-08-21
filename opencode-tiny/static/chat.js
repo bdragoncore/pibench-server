@@ -46,6 +46,35 @@
   let currentMessages = []; // stored raw messages for export
   let pendingAttachments = []; // Array of { id, kind: 'image'|'pasted', name, text, dataUrl }
 
+  // ---------- Scrolling System (matching openmind-browser-extension) ----------
+  /** @type {boolean} Whether the user was following the newest message before the last DOM update. */
+  let followMessageBottom = true;
+  let queuedScrollFrame = null;
+
+  log.addEventListener('scroll', () => {
+    followMessageBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+  });
+
+  /** Scrolls the message list to the newest message when the user was following the bottom. @param {boolean} [force=false] */
+  function scrollBottom(force = false) {
+    if (force) followMessageBottom = true;
+    if (followMessageBottom) {
+      log.scrollTop = log.scrollHeight;
+    }
+  }
+
+  // Streaming changes text inside existing nodes, so observe text and subtree changes
+  // and coalesce them into one bottom adjustment per frame. If the user scrolled up,
+  // the observer becomes a no-op and preserves their history reading position.
+  const messageScrollObserver = new MutationObserver(() => {
+    if (!followMessageBottom || queuedScrollFrame !== null) return;
+    queuedScrollFrame = requestAnimationFrame(() => {
+      queuedScrollFrame = null;
+      scrollBottom();
+    });
+  });
+  messageScrollObserver.observe(log, { childList: true, characterData: true, subtree: true });
+
   function downscaleImage(dataUrl, maxWidth = 1568) {
     return new Promise((resolve) => {
       const img = new Image();
@@ -279,7 +308,7 @@
     }
     el.appendChild(body);
     log.appendChild(el);
-    log.scrollTop = log.scrollHeight;
+    scrollBottom(role === 'user');
 
     currentMessages.push({ role, content: text });
     return body;
@@ -298,43 +327,38 @@
           <span>🔑</span>
           <strong>Superuser Privilege Request</strong>
         </div>
-        <span class="tool-status-tag warn">PROMPT</span>
+        <div class="superuser-badge">ELEVATION REQUIRED</div>
       </div>
       <div class="superuser-body">
-        <p class="superuser-reason">${escapeHtml(reason || 'OpenCode requires elevated superuser / sudo privileges to execute system commands.')}</p>
-        <div class="superuser-input-row">
-          <input type="password" class="sudo-password-input form-input" placeholder="Enter sudo password for pibench..." autocomplete="off">
-          <button class="btn-grant-sudo btn-primary">Grant Sudo Access</button>
+        <p class="superuser-reason">${escapeHtml(reason || 'The agent requires elevated superuser permissions to execute this command.')}</p>
+        <div class="superuser-form">
+          <input type="password" class="form-input sudo-pass-input" placeholder="Enter sudo password..." autocomplete="off" />
+          <button type="button" class="btn-primary sudo-grant-btn">Grant Superuser Access</button>
         </div>
-        <div class="sudo-status-msg hidden"></div>
+        <div class="sudo-status-msg"></div>
       </div>
     `;
 
-    const input = card.querySelector('.sudo-password-input');
-    const btnGrant = card.querySelector('.btn-grant-sudo');
+    const input = card.querySelector('.sudo-pass-input');
+    const btnGrant = card.querySelector('.sudo-grant-btn');
     const statusMsg = card.querySelector('.sudo-status-msg');
-    const statusTag = card.querySelector('.tool-status-tag');
 
     async function submitSudoPassword() {
-      const pass = input.value.trim();
+      const pass = input.value;
       if (!pass) return;
-
-      statusMsg.textContent = 'Verifying password...';
-      statusMsg.className = 'sudo-status-msg info';
+      statusMsg.textContent = 'Verifying credentials...';
+      statusMsg.className = 'sudo-status-msg';
       btnGrant.disabled = true;
 
       try {
-        const res = await fetch(getApiUrl('api/superuser'), {
+        const res = await fetch(getApiUrl('api/sudo'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: pass })
+          body: JSON.stringify({ password: pass }),
         });
-
         if (res.ok) {
-          statusMsg.textContent = '✓ Superuser privileges granted!';
-          statusMsg.className = 'sudo-status-msg success';
-          statusTag.className = 'tool-status-tag done';
-          statusTag.textContent = 'GRANTED';
+          statusMsg.textContent = '✓ Access granted! Resuming agent...';
+          statusMsg.className = 'sudo-status-msg success-msg';
           input.disabled = true;
           btnGrant.disabled = true;
           
@@ -364,7 +388,7 @@
     });
 
     log.appendChild(card);
-    log.scrollTop = log.scrollHeight;
+    scrollBottom(true);
     setTimeout(() => input.focus(), 100);
     return card;
   }
@@ -417,13 +441,19 @@
       if (isDone) {
         statusTag.className = 'tool-status-tag done';
         statusTag.textContent = 'DONE';
-        if (result) outputPre.textContent = result;
+        if (result) {
+          outputPre.textContent = result;
+          outputPre.scrollTop = outputPre.scrollHeight;
+        }
       } else {
-        if (result) outputPre.textContent = result;
+        if (result) {
+          outputPre.textContent = result;
+          outputPre.scrollTop = outputPre.scrollHeight;
+        }
       }
     }
 
-    log.scrollTop = log.scrollHeight;
+    scrollBottom();
     return card;
   }
 
@@ -438,7 +468,7 @@
     card.className = 'msg system-msg';
     card.innerHTML = `<div class="msg-content system-notice">${htmlContent}</div>`;
     log.appendChild(card);
-    log.scrollTop = log.scrollHeight;
+    scrollBottom();
   }
 
   function getCookie(name) {
@@ -627,6 +657,7 @@
           addToolCard('tool', '', m.content, true);
         }
       }
+      scrollBottom(true);
     } catch (err) {
       console.error('Failed to load session messages:', err);
     }
@@ -854,7 +885,6 @@
             if (!assistantBody) assistantBody = addMsg('assistant', '');
             assistantText += ev.text;
             assistantBody.innerHTML = parseMarkdown(assistantText);
-            log.scrollTop = log.scrollHeight;
           } else if (ev.type === 'tool_call') {
             statusText.textContent = `Running tool ${ev.tool}...`;
             addToolCard(ev.tool, ev.args, null, false);

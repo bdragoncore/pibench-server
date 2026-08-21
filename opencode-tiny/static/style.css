@@ -414,9 +414,32 @@ main {
   width: 100%;
 }
 
+/* Custom Scrollbar (matching openmind-browser-extension) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a4a;
+  border-radius: 5px;
+  border: 3px solid #1a1a2e;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #7c8aff;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a4a transparent;
+}
+
 #log {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
   display: flex;
   flex-direction: column;
   gap: 1rem;
