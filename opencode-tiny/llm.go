@@ -248,7 +248,7 @@ func streamChat(ctx context.Context, cfg *Config, messages []Message, tools []To
 		stallTimer := time.AfterFunc(30*time.Second, cancel)
 		defer stallTimer.Stop()
 
-		cleanedMsgs := sanitizeMessages(messages)
+		cleanedMsgs := sanitizeMessages(pruneMessagesForContext(messages))
 		reqBody := chatRequest{
 			Model:    cleanModelName(cfg.Model),
 			Messages: cleanedMsgs,
@@ -467,11 +467,87 @@ func streamChatWithRetry(ctx context.Context, cfg *Config, messages []Message, t
 	return out
 }
 
+// pruneMessagesForContext trims long conversation history to stay comfortably within the model's context budget:
+// 1. Always preserves the system prompt (index 0) and the initial user goal if available.
+// 2. Compacts large historical tool outputs (> 2.5KB) from older turns into lightweight summaries.
+// 3. Slices the conversation window to the most recent atomic turns.
+// 4. Ensures tool calls and tool responses remain strictly paired.
+func pruneMessagesForContext(msgs []Message) []Message {
+	if len(msgs) <= 18 {
+		return msgs
+	}
+
+	var systemMsg *Message
+	var firstUserMsg *Message
+	startIdx := 0
+
+	if len(msgs) > 0 && msgs[0].Role == "system" {
+		systemMsg = &msgs[0]
+		startIdx = 1
+	}
+
+	if startIdx < len(msgs) && msgs[startIdx].Role == "user" {
+		firstUserMsg = &msgs[startIdx]
+	}
+
+	// Keep the most recent 18 messages
+	tailCount := 18
+	if len(msgs)-startIdx < tailCount {
+		tailCount = len(msgs) - startIdx
+	}
+	tailSlice := msgs[len(msgs)-tailCount:]
+
+	// Find first clean user boundary in tailSlice
+	cutIdx := 0
+	for i, m := range tailSlice {
+		if m.Role == "user" {
+			cutIdx = i
+			break
+		}
+	}
+	recent := tailSlice[cutIdx:]
+
+	// Compact older tool outputs in recent slice
+	var compacted []Message
+	for i, m := range recent {
+		mCopy := m
+		if m.Role == "tool" {
+			if str, ok := m.Content.(string); ok && len(str) > 2500 && i < len(recent)-4 {
+				mCopy.Content = str[:1200] + "\n... [truncated older output]"
+			}
+		}
+		compacted = append(compacted, mCopy)
+	}
+
+	// Reassemble: system + (firstUser goal note if not already in recent) + compacted
+	var out []Message
+	if systemMsg != nil {
+		out = append(out, *systemMsg)
+	}
+	if firstUserMsg != nil && len(compacted) > 0 {
+		if str1, ok1 := firstUserMsg.Content.(string); ok1 {
+			if str2, ok2 := compacted[0].Content.(string); !ok2 || str1 != str2 {
+				out = append(out, Message{
+					Role:    "user",
+					Content: fmt.Sprintf("[Original user goal: %s]", str1),
+				})
+			}
+		}
+	}
+	out = append(out, compacted...)
+
+	return out
+}
+
 // cleanModelName strips provider namespace prefixes and resolves model aliases matching upstream OpenCode.
 func cleanModelName(model string) string {
 	model = strings.TrimSpace(model)
-	if idx := strings.LastIndex(model, "/"); idx != -1 {
-		model = model[idx+1:]
+	if strings.HasPrefix(model, "openmind/") {
+		model = strings.TrimPrefix(model, "openmind/")
+	} else if strings.HasPrefix(model, "opencode/") {
+		model = strings.TrimPrefix(model, "opencode/")
+	} else if strings.HasPrefix(model, "custom/") {
+		model = strings.TrimPrefix(model, "custom/")
 	}
 	switch model {
 	case "ox-alpha", "ox-alpha-free", "x-preview-f-free":

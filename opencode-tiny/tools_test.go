@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -94,5 +95,60 @@ func TestSanitizeMessages(t *testing.T) {
 	emptyClean := sanitizeMessages(emptyRaw)
 	if len(emptyClean) != 2 {
 		t.Fatalf("Expected empty assistant message to be dropped, got %d messages", len(emptyClean))
+	}
+}
+
+func TestPruneMessagesForContext(t *testing.T) {
+	msgs := []Message{
+		{Role: "system", Content: "System prompt"},
+		{Role: "user", Content: "Initial goal"},
+	}
+
+	for i := 0; i < 30; i++ {
+		msgs = append(msgs,
+			Message{Role: "assistant", Content: fmt.Sprintf("Turn %d", i), ToolCalls: []ToolCall{{ID: fmt.Sprintf("call_%d", i), Function: FunctionCall{Name: "bash"}}}},
+			Message{Role: "tool", ToolCallID: fmt.Sprintf("call_%d", i), Content: strings.Repeat("A", 4000)},
+		)
+	}
+
+	pruned := pruneMessagesForContext(msgs)
+	if len(pruned) >= len(msgs) {
+		t.Fatalf("Expected pruned length < original (%d), got %d", len(msgs), len(pruned))
+	}
+	if pruned[0].Role != "system" {
+		t.Fatalf("Expected system prompt preserved at index 0")
+	}
+
+	// Verify large tool content in older turns was truncated
+	foundTruncated := false
+	for _, m := range pruned {
+		if m.Role == "tool" && strings.Contains(m.Content.(string), "[truncated older output]") {
+			foundTruncated = true
+			break
+		}
+	}
+	if !foundTruncated {
+		t.Fatalf("Expected older tool content to be compacted with truncation marker")
+	}
+}
+
+func TestCleanModelName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"openmind/zen-big-pickle", "zen-big-pickle"},
+		{"opencode/zen-hy3-free", "zen-hy3-free"},
+		{"kilo-stepfun/step-3.7-flash:free", "kilo-stepfun/step-3.7-flash:free"},
+		{"kilo-kilo-auto/free", "kilo-kilo-auto/free"},
+		{"hy3-free", "zen-hy3-free"},
+		{"ox-alpha-free", "zen-x-preview-f-free"},
+	}
+
+	for _, tt := range tests {
+		got := cleanModelName(tt.input)
+		if got != tt.want {
+			t.Errorf("cleanModelName(%q) = %q, want %q", tt.input, got, tt.want)
+		}
 	}
 }
