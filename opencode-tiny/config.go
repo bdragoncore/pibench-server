@@ -149,7 +149,7 @@ func loadConfig() (*Config, error) {
 		cfg.BaseURL = envOr("OPENMIND_BASE_URL", "http://pibox.local:5000/v1")
 	}
 	if cfg.Model == "" {
-		cfg.Model = "zen-hy3-free"
+		cfg.Model = "zen-big-pickle"
 	}
 
 	// Ensure workdir exists
@@ -193,8 +193,8 @@ func getDefaultOpenMindConfig() string {
 	baseURL := envOr("OPENMIND_BASE_URL", envOr("OPENCODE_TINY_BASE_URL", "http://pibox.local:5000/v1"))
 	return fmt.Sprintf(`{
   "$schema": "https://opencode.ai/config.json",
-  "model": "openmind/zen-hy3-free",
-  "small_model": "openmind/zen-hy3-free",
+  "model": "openmind/zen-big-pickle",
+  "small_model": "openmind/zen-big-pickle",
   "provider": {
     "openmind": {
       "name": "OpenMind (local)",

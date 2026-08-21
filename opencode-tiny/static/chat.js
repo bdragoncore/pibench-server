@@ -442,10 +442,22 @@
     log.scrollTop = log.scrollHeight;
   }
 
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift());
+    return null;
+  }
+
+  function setCookie(name, value, days = 365) {
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+  }
+
   let cachedModelList = [];
 
   // Swap active model helper
-  async function swapModel(newModel) {
+  async function swapModel(newModel, silent = false) {
     if (!newModel) return;
     try {
       const res = await fetch(getApiUrl('api/config'), {
@@ -457,15 +469,18 @@
         const data = await res.json();
         const active = data.active_model || newModel;
         const full = active.includes('/') ? active : `openmind/${active}`;
+        setCookie('opencode_model', full);
         if (modelSelectBadge) modelSelectBadge.value = full;
         if (settingsModelSelect) settingsModelSelect.value = full;
-        addSystemMsg(`⚡ Active AI model swapped to <strong>${escapeHtml(active)}</strong>`);
+        if (!silent) {
+          addSystemMsg(`⚡ Active AI model swapped to <strong>${escapeHtml(active)}</strong>`);
+        }
       } else {
-        addSystemMsg(`❌ Failed to swap model: ${res.statusText}`);
+        if (!silent) addSystemMsg(`❌ Failed to swap model: ${res.statusText}`);
       }
     } catch (err) {
       console.error('Failed to swap model:', err);
-      addSystemMsg(`❌ Error swapping model: ${err.message}`);
+      if (!silent) addSystemMsg(`❌ Error swapping model: ${err.message}`);
     }
   }
 
@@ -475,7 +490,16 @@
       const res = await fetch(getApiUrl('api/config'));
       if (res.ok) {
         loadedConfigData = await res.json();
-        updateModelDropdown(loadedConfigData.raw_json || loadedConfigData.default_config || '', loadedConfigData.active_model);
+        const savedCookieModel = getCookie('opencode_model');
+        const defaultModel = savedCookieModel || 'openmind/zen-big-pickle';
+
+        updateModelDropdown(loadedConfigData.raw_json || loadedConfigData.default_config || '', savedCookieModel || loadedConfigData.active_model || defaultModel);
+
+        if (savedCookieModel && savedCookieModel !== loadedConfigData.active_model) {
+          await swapModel(savedCookieModel, true);
+        } else if (!savedCookieModel && loadedConfigData.active_model !== 'openmind/zen-big-pickle' && loadedConfigData.active_model !== 'zen-big-pickle') {
+          await swapModel('openmind/zen-big-pickle', true);
+        }
       }
     } catch (e) {
       console.error('loadInfo error:', e);
@@ -1046,6 +1070,7 @@
 
     if (Object.keys(orderedGroups).length === 0) {
       orderedGroups['🆓 Zen Free Models'] = [
+        { id: 'openmind/zen-big-pickle', key: 'zen-big-pickle', provider: 'openmind', name: 'zen-big-pickle', shortName: 'zen-big-pickle' },
         { id: 'openmind/zen-hy3-free', key: 'zen-hy3-free', provider: 'openmind', name: 'zen-hy3-free', shortName: 'zen-hy3-free' },
         { id: 'openmind/zen-x-preview-f-free', key: 'zen-x-preview-f-free', provider: 'openmind', name: 'zen-x-preview-f-free', shortName: 'zen-x-preview-f-free' }
       ];
