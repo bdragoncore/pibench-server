@@ -23,7 +23,7 @@ type AgentEvent struct {
 
 // runAgentTurn drives the LLM completion and tool-execution loop for a user message,
 // persisting messages to SQLite and emitting AgentEvent SSE frames to the client.
-func runAgentTurn(ctx context.Context, cfg *Config, store *Store, sessionID, userText string, emit func(AgentEvent)) error {
+func runAgentTurn(ctx context.Context, cfg *Config, store *Store, sessionID, userText string, images []string, emit func(AgentEvent)) error {
 	history, err := store.loadMessages(sessionID)
 	if err != nil {
 		return fmt.Errorf("load history: %w", err)
@@ -35,7 +35,24 @@ func runAgentTurn(ctx context.Context, cfg *Config, store *Store, sessionID, use
 	}
 	messages = append(messages, history...)
 
-	userMsg := Message{Role: "user", Content: userText}
+	var userContent any = userText
+	if len(images) > 0 {
+		var parts []any
+		if userText != "" {
+			parts = append(parts, map[string]any{"type": "text", "text": userText})
+		}
+		for _, img := range images {
+			parts = append(parts, map[string]any{
+				"type": "image_url",
+				"image_url": map[string]string{
+					"url": img,
+				},
+			})
+		}
+		userContent = parts
+	}
+
+	userMsg := Message{Role: "user", Content: userContent}
 	messages = append(messages, userMsg)
 	if err := store.addMessage(sessionID, userMsg); err != nil {
 		return fmt.Errorf("save user message: %w", err)

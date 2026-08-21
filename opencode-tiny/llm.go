@@ -15,7 +15,7 @@ import (
 // Message represents a single chat message formatted in the OpenAI Chat Completions API schema.
 type Message struct {
 	Role       string     `json:"role"`                 // Message role: "system", "user", "assistant", or "tool"
-	Content    string     `json:"content,omitempty"`      // Text content of the message
+	Content    any        `json:"content,omitempty"`      // Text content string OR multimodal []any
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`   // Array of tool calls emitted by the assistant
 	ToolCallID string     `json:"tool_call_id,omitempty"` // ID of the tool call this message responds to (for role="tool")
 }

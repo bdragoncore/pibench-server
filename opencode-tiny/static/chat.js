@@ -36,12 +36,74 @@
   const statusBar = document.getElementById('status-bar');
   const statusText = document.getElementById('status-text');
   const stopBtn = document.getElementById('stop-btn');
+  const attachmentTray = document.getElementById('attachment-tray');
+  const btnAttach = document.getElementById('btn-attach');
+  const attachFileInput = document.getElementById('attach-file-input');
 
   let currentSessionId = null;
   let activeToolCards = {}; // tcKey -> element
   let isGenerating = false;
   let activeAbortController = null;
   let currentMessages = []; // stored raw messages for export
+  let pendingAttachments = []; // Array of { id, kind: 'image'|'pasted', name, text, dataUrl }
+
+  function downscaleImage(dataUrl, maxWidth = 1568) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        if (img.width <= maxWidth) return resolve(dataUrl);
+        const scale = maxWidth / img.width;
+        const canvas = document.createElement('canvas');
+        canvas.width = maxWidth;
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+
+  function addImageAttachment(dataUrl, filename = 'Image') {
+    const id = 'att-' + Math.random().toString(36).slice(2, 9);
+    pendingAttachments.push({ id, kind: 'image', name: filename, dataUrl });
+    renderAttachmentTray();
+  }
+
+  function addPastedAttachment(text) {
+    const id = 'att-' + Math.random().toString(36).slice(2, 9);
+    const n = pendingAttachments.filter(a => a.kind === 'pasted').length + 1;
+    const lenKb = (text.length / 1024).toFixed(1);
+    pendingAttachments.push({ id, kind: 'pasted', name: `Pasted text #${n} (${lenKb} KB)`, text });
+    renderAttachmentTray();
+  }
+
+  function removeAttachment(id) {
+    pendingAttachments = pendingAttachments.filter(a => a.id !== id);
+    renderAttachmentTray();
+  }
+
+  function renderAttachmentTray() {
+    if (!attachmentTray) return;
+    if (pendingAttachments.length === 0) {
+      attachmentTray.innerHTML = '';
+      attachmentTray.classList.add('hidden');
+      return;
+    }
+    attachmentTray.classList.remove('hidden');
+    let html = '';
+    pendingAttachments.forEach(att => {
+      if (att.kind === 'image') {
+        html += `<div class="attachment-chip"><img src="${escapeHtml(att.dataUrl)}" class="thumb" /><span>📷 ${escapeHtml(att.name)}</span><button type="button" class="btn-remove" data-id="${att.id}">×</button></div>`;
+      } else {
+        html += `<div class="attachment-chip"><span>📄 ${escapeHtml(att.name)}</span><button type="button" class="btn-remove" data-id="${att.id}">×</button></div>`;
+      }
+    });
+    attachmentTray.innerHTML = html;
+    attachmentTray.querySelectorAll('.btn-remove').forEach(btn => {
+      btn.addEventListener('click', () => removeAttachment(btn.dataset.id));
+    });
+  }
 
   // Escaping helper
   function escapeHtml(str) {
@@ -175,7 +237,7 @@
   }
 
   // Append or update message element
-  function addMsg(role, text) {
+  function addMsg(role, text, atts) {
     // Clear welcome screen if present
     if (log.querySelector('.welcome-container')) {
       log.innerHTML = '';
@@ -188,6 +250,25 @@
     label.className = 'label';
     label.textContent = role === 'user' ? 'You' : role === 'assistant' ? 'OpenCode' : role;
     el.appendChild(label);
+
+    if (atts && atts.length > 0) {
+      const attWrap = document.createElement('div');
+      attWrap.className = 'msg-atts';
+      atts.forEach(att => {
+        if (att.kind === 'image') {
+          const img = document.createElement('img');
+          img.src = att.dataUrl;
+          img.className = 'msg-image';
+          attWrap.appendChild(img);
+        } else if (att.kind === 'pasted') {
+          const chip = document.createElement('div');
+          chip.className = 'msg-pasted';
+          chip.textContent = '📄 ' + att.name;
+          attWrap.appendChild(chip);
+        }
+      });
+      el.appendChild(attWrap);
+    }
 
     const body = document.createElement('div');
     body.className = role === 'assistant' ? 'msg-body' : 'msg-text';
@@ -640,7 +721,7 @@
 
   // Main Submit handler
   async function sendMessage(text) {
-    if (!text || isGenerating) return;
+    if ((!text && pendingAttachments.length === 0) || isGenerating) return;
 
     if (text.startsWith('/sync')) {
       input.value = '';
@@ -676,6 +757,23 @@
       return;
     }
 
+    let finalPrompt = text;
+    const pastedTexts = pendingAttachments.filter(a => a.kind === 'pasted');
+    const images = pendingAttachments.filter(a => a.kind === 'image').map(a => a.dataUrl);
+
+    if (pastedTexts.length > 0) {
+      const textParts = pastedTexts.map(a => `--- ${a.name} ---\n${a.text}`);
+      if (finalPrompt) {
+        finalPrompt = finalPrompt + '\n\n' + textParts.join('\n\n');
+      } else {
+        finalPrompt = textParts.join('\n\n');
+      }
+    }
+
+    const currentAtts = [...pendingAttachments];
+    pendingAttachments = [];
+    renderAttachmentTray();
+
     input.value = '';
     autoResizeInput();
 
@@ -690,7 +788,7 @@
     statusBar.classList.remove('hidden');
     statusText.textContent = 'OpenCode is thinking...';
 
-    addMsg('user', text);
+    addMsg('user', text, currentAtts);
 
     let assistantBody = null;
     let assistantText = '';
@@ -699,7 +797,11 @@
       const res = await fetch(getApiUrl('api/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: currentSessionId, message: text }),
+        body: JSON.stringify({
+          session_id: currentSessionId,
+          message: finalPrompt,
+          images: images
+        }),
         signal: activeAbortController.signal,
       });
 
@@ -762,6 +864,58 @@
     }
   }
 
+  // Paste Event Listener (Image downscaling & Large Text Chip attachment)
+  input.addEventListener('paste', e => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (items) {
+      for (const item of items) {
+        if (item.type && item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const downscaled = await downscaleImage(reader.result, 1568);
+            addImageAttachment(downscaled, file.name || 'Pasted Image');
+          };
+          reader.readAsDataURL(file);
+          return;
+        }
+      }
+    }
+    const pastedText = (e.clipboardData && e.clipboardData.getData('text/plain')) || '';
+    const lineCount = pastedText.split('\n').length;
+    if (pastedText.length > 2000 || lineCount > 10) {
+      e.preventDefault();
+      addPastedAttachment(pastedText);
+    }
+  });
+
+  // File Attachment Button Handler
+  if (btnAttach && attachFileInput) {
+    btnAttach.addEventListener('click', () => attachFileInput.click());
+    attachFileInput.addEventListener('change', () => {
+      const files = Array.from(attachFileInput.files);
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          if (file.type.startsWith('image/')) {
+            const downscaled = await downscaleImage(reader.result, 1568);
+            addImageAttachment(downscaled, file.name);
+          } else {
+            addPastedAttachment(reader.result);
+          }
+        };
+        if (file.type.startsWith('image/')) {
+          reader.readAsDataURL(file);
+        } else {
+          reader.readAsText(file);
+        }
+      });
+      attachFileInput.value = '';
+    });
+  }
+
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     if (isGenerating) {
@@ -769,7 +923,7 @@
       return;
     }
     const text = input.value.trim();
-    if (text) sendMessage(text);
+    sendMessage(text);
   });
 
   if (stopBtn) {

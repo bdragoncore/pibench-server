@@ -282,7 +282,7 @@ func handleOpenCodeSession(w http.ResponseWriter, r *http.Request, cfg *Config, 
 			flusher.Flush()
 		}
 
-		if err := runAgentTurn(r.Context(), cfg, store, sessionID, promptText, emit); err != nil {
+		if err := runAgentTurn(r.Context(), cfg, store, sessionID, promptText, nil, emit); err != nil {
 			log.Printf("agent turn error (session %s): %v", sessionID, err)
 		}
 		return
@@ -387,21 +387,25 @@ func handleChat(w http.ResponseWriter, r *http.Request, cfg *Config, store *Stor
 	}
 
 	var body struct {
-		SessionID string `json:"session_id"`
-		Message   string `json:"message"`
+		SessionID string   `json:"session_id"`
+		Message   string   `json:"message"`
+		Images    []string `json:"images,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	if strings.TrimSpace(body.Message) == "" {
-		http.Error(w, "message is required", http.StatusBadRequest)
+	if strings.TrimSpace(body.Message) == "" && len(body.Images) == 0 {
+		http.Error(w, "message or image is required", http.StatusBadRequest)
 		return
 	}
 
 	sessionID := body.SessionID
 	if sessionID == "" {
 		title := body.Message
+		if title == "" && len(body.Images) > 0 {
+			title = fmt.Sprintf("[Image attachment %d]", len(body.Images))
+		}
 		if len(title) > 60 {
 			title = title[:60] + "…"
 		}
@@ -434,7 +438,7 @@ func handleChat(w http.ResponseWriter, r *http.Request, cfg *Config, store *Stor
 		flusher.Flush()
 	}
 
-	if err := runAgentTurn(r.Context(), cfg, store, sessionID, body.Message, emit); err != nil {
+	if err := runAgentTurn(r.Context(), cfg, store, sessionID, body.Message, body.Images, emit); err != nil {
 		log.Printf("agent turn error (session %s): %v", sessionID, err)
 	}
 }
