@@ -811,7 +811,7 @@ pre.code-block {
 }
 
 .tool-card.collapsed .tool-card-body {
-  display: none;
+  display: none !important;
 }
 
 .tool-output {
@@ -822,6 +822,8 @@ pre.code-block {
   word-break: break-all;
   max-height: 320px;
   overflow-y: auto;
+  margin: 0;
+  padding: 0;
 }
 
 /* Error messages */

@@ -404,8 +404,10 @@
       log.innerHTML = '';
     }
 
-    const tcKey = toolName + '_' + (args || '').slice(0, 30);
-    let card = activeToolCards[tcKey];
+    // Match by toolName or composite key
+    const tcKey = toolName + (args ? '_' + args.slice(0, 30) : '');
+    let card = activeToolCards[toolName] || activeToolCards[tcKey];
+    const displayText = result !== null ? (result.trim() || '(no output)') : (isDone ? '(no output)' : 'Executing command...');
 
     if (!card) {
       card = document.createElement('div');
@@ -419,11 +421,11 @@
           </div>
           <div class="tool-card-controls">
             <span class="tool-status-tag ${isDone ? 'done' : 'running'}">${isDone ? 'DONE' : 'RUNNING'}</span>
-            <button class="tool-toggle-btn" title="Toggle output">▼</button>
+            <button type="button" class="tool-toggle-btn" title="Toggle output">▼</button>
           </div>
         </div>
         <div class="tool-card-body">
-          <pre class="tool-output">${escapeHtml(result || 'Executing command...')}</pre>
+          <pre class="tool-output">${escapeHtml(displayText)}</pre>
         </div>
       `;
 
@@ -433,21 +435,31 @@
       });
 
       log.appendChild(card);
-      activeToolCards[tcKey] = card;
+      if (!isDone) {
+        activeToolCards[toolName] = card;
+        activeToolCards[tcKey] = card;
+      }
     } else {
       const statusTag = card.querySelector('.tool-status-tag');
       const outputPre = card.querySelector('.tool-output');
+      const argsSpan = card.querySelector('.tool-args');
+
+      if (args && argsSpan && !argsSpan.textContent) {
+        argsSpan.textContent = args;
+      }
 
       if (isDone) {
         statusTag.className = 'tool-status-tag done';
         statusTag.textContent = 'DONE';
-        if (result) {
-          outputPre.textContent = result;
+        if (result !== null) {
+          outputPre.textContent = displayText;
           outputPre.scrollTop = outputPre.scrollHeight;
         }
+        delete activeToolCards[toolName];
+        delete activeToolCards[tcKey];
       } else {
-        if (result) {
-          outputPre.textContent = result;
+        if (result !== null) {
+          outputPre.textContent = displayText;
           outputPre.scrollTop = outputPre.scrollHeight;
         }
       }
