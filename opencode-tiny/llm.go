@@ -175,59 +175,65 @@ func sanitizeMessages(msgs []Message) []Message {
 		}
 	}
 
-	// Step 2: Validate and pair tool calls with tool responses
+	// Step 2: Validate and pair tool calls with tool responses (including parallel tool calls)
 	var clean []Message
+	activePendingToolIDs := make(map[string]bool)
+
 	for i := 0; i < len(step1); i++ {
 		m := step1[i]
-		if m.Role == "assistant" && len(m.ToolCalls) > 0 {
-			// Count how many matching tool messages follow immediately
-			neededIDs := make(map[string]bool)
-			for _, tc := range m.ToolCalls {
-				if tc.ID != "" {
-					neededIDs[tc.ID] = true
+		switch m.Role {
+		case "assistant":
+			activePendingToolIDs = make(map[string]bool)
+			if len(m.ToolCalls) > 0 {
+				neededIDs := make(map[string]bool)
+				for _, tc := range m.ToolCalls {
+					if tc.ID != "" {
+						neededIDs[tc.ID] = true
+					}
 				}
-			}
 
-			// Look ahead for matching tool messages
-			foundAll := true
-			lookahead := i + 1
-			for tcID := range neededIDs {
-				found := false
-				for j := lookahead; j < len(step1); j++ {
+				// Look ahead across consecutive tool messages to verify ALL neededIDs are present
+				foundIDs := make(map[string]bool)
+				for j := i + 1; j < len(step1); j++ {
 					if step1[j].Role != "tool" {
 						break
 					}
-					if step1[j].ToolCallID == tcID {
-						found = true
-						break
+					if neededIDs[step1[j].ToolCallID] {
+						foundIDs[step1[j].ToolCallID] = true
 					}
 				}
-				if !found {
-					foundAll = false
-					break
-				}
-			}
 
-			if !foundAll {
-				// Dangling tool call: strip tool calls and preserve content
-				m.ToolCalls = nil
-				if str, ok := m.Content.(string); !ok || strings.TrimSpace(str) == "" {
-					m.Content = "(interrupted)"
+				if len(foundIDs) == len(neededIDs) {
+					// All tool responses are present! Keep tool calls and track expected tool IDs
+					for id := range neededIDs {
+						activePendingToolIDs[id] = true
+					}
+				} else {
+					// Incomplete or dangling tool calls (e.g. from interrupted turn)
+					m.ToolCalls = nil
+					if str, ok := m.Content.(string); !ok || strings.TrimSpace(str) == "" {
+						m.Content = "(interrupted)"
+					}
 				}
 			}
 			clean = append(clean, m)
-		} else if m.Role == "tool" {
-			// Only include tool message if preceding message in clean was assistant with tool_calls
-			if len(clean) > 0 && clean[len(clean)-1].Role == "assistant" && len(clean[len(clean)-1].ToolCalls) > 0 {
+
+		case "tool":
+			if activePendingToolIDs[m.ToolCallID] {
+				// Valid tool response matching preceding assistant's tool call!
 				clean = append(clean, m)
+				delete(activePendingToolIDs, m.ToolCallID)
 			} else {
-				// Convert orphaned tool message into user observation note to preserve context without schema error
+				// Orphaned tool response with no matching tool call
 				clean = append(clean, Message{
 					Role:    "user",
 					Content: fmt.Sprintf("[Tool observation: %v]", m.Content),
 				})
 			}
-		} else {
+
+		default:
+			// User, system, etc. ends any active tool sequence
+			activePendingToolIDs = make(map[string]bool)
 			clean = append(clean, m)
 		}
 	}

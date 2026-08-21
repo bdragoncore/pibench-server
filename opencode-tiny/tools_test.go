@@ -96,6 +96,36 @@ func TestSanitizeMessages(t *testing.T) {
 	if len(emptyClean) != 2 {
 		t.Fatalf("Expected empty assistant message to be dropped, got %d messages", len(emptyClean))
 	}
+
+	// Scenario 4: Multiple parallel tool calls (Anthropic/OpenAI conformance)
+	parallelRaw := []Message{
+		{Role: "user", Content: "fetch pages"},
+		{
+			Role:    "assistant",
+			Content: "Fetching...",
+			ToolCalls: []ToolCall{
+				{ID: "call_a", Function: FunctionCall{Name: "webfetch", Arguments: `{"url":"https://a.com"}`}},
+				{ID: "call_b", Function: FunctionCall{Name: "webfetch", Arguments: `{"url":"https://b.com"}`}},
+				{ID: "call_c", Function: FunctionCall{Name: "webfetch", Arguments: `{"url":"https://c.com"}`}},
+			},
+		},
+		{Role: "tool", ToolCallID: "call_a", Content: "Page A content"},
+		{Role: "tool", ToolCallID: "call_b", Content: "Page B content"},
+		{Role: "tool", ToolCallID: "call_c", Content: "Page C content"},
+		{Role: "assistant", Content: "All pages fetched."},
+	}
+	parallelClean := sanitizeMessages(parallelRaw)
+	if len(parallelClean) != 6 {
+		t.Fatalf("Expected 6 messages for parallel tool calls, got %d", len(parallelClean))
+	}
+	if len(parallelClean[1].ToolCalls) != 3 {
+		t.Fatalf("Expected 3 tool calls in assistant message, got %d", len(parallelClean[1].ToolCalls))
+	}
+	for i := 2; i <= 4; i++ {
+		if parallelClean[i].Role != "tool" {
+			t.Fatalf("Expected parallelClean[%d] to be role 'tool', got %q", i, parallelClean[i].Role)
+		}
+	}
 }
 
 func TestPruneMessagesForContext(t *testing.T) {
