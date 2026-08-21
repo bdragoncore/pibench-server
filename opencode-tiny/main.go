@@ -17,6 +17,7 @@ import (
 )
 
 // staticFS embeds static HTML, CSS, and JS web portal assets into the single Go binary.
+//
 //go:embed static
 var staticFS embed.FS
 

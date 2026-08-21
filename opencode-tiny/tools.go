@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	maxToolOutput = 16 * 1024  // truncate tool output/reads to keep context (and RAM) small
-	maxReadBytes  = 256 * 1024 // refuse to slurp huge files
+	maxToolOutput      = 16 * 1024  // truncate tool output/reads to keep context (and RAM) small
+	maxReadBytes       = 256 * 1024 // refuse to slurp huge files
 	defaultBashTimeout = 60 * time.Second
-	maxBashTimeout      = 180 * time.Second
+	maxBashTimeout     = 180 * time.Second
 )
 
 var toolSpecs = []ToolSpec{

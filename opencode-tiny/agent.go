@@ -13,7 +13,7 @@ Use them to inspect and modify files, control hardware, and run commands. Be con
 
 // AgentEvent represents a single real-time event unit emitted during an agent turn, streamed to clients as an SSE data frame.
 type AgentEvent struct {
-	Type    string `json:"type"`             // Event classification: "text", "tool_call", "tool_result", "done", or "error"
+	Type    string `json:"type"`              // Event classification: "text", "tool_call", "tool_result", "done", or "error"
 	Text    string `json:"text,omitempty"`    // Streamed text token content
 	Tool    string `json:"tool,omitempty"`    // Executed tool name
 	Args    string `json:"args,omitempty"`    // Arguments JSON passed to the tool
