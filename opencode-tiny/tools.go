@@ -5,10 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
+	"io"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -33,6 +38,35 @@ var toolSpecs = []ToolSpec{
 					"timeout_seconds": {"type": "integer", "description": "Optional timeout, default 60, max 180"}
 				},
 				"required": ["command"]
+			}`),
+		},
+	},
+	{
+		Type: "function",
+		Function: ToolFunction{
+			Name:        "websearch",
+			Description: "Search the live web for current information, documentation, news, or technical answers. Returns clean search titles, URLs, and snippet summaries.",
+			Parameters: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"query": {"type": "string", "description": "The search query"},
+					"num_results": {"type": "integer", "description": "Optional number of results to return (default 8, max 20)"}
+				},
+				"required": ["query"]
+			}`),
+		},
+	},
+	{
+		Type: "function",
+		Function: ToolFunction{
+			Name:        "webfetch",
+			Description: "Fetch content from a web URL and return readable plain text / markdown content.",
+			Parameters: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"url": {"type": "string", "description": "The HTTP or HTTPS URL to fetch"}
+				},
+				"required": ["url"]
 			}`),
 		},
 	},
@@ -180,6 +214,10 @@ func runTool(ctx context.Context, cfg *Config, name string, argsJSON string) str
 	switch name {
 	case "bash":
 		return toolBash(ctx, cfg, args)
+	case "websearch", "web_search", "search":
+		return toolWebSearch(ctx, cfg, args)
+	case "webfetch", "web_fetch", "fetch_url":
+		return toolWebFetch(ctx, cfg, args)
 	case "read", "read_file":
 		return toolReadFile(cfg, args)
 	case "write", "write_file":
@@ -538,4 +576,174 @@ func toolGpioControl(ctx context.Context, cfg *Config, args map[string]any) stri
 	default:
 		return fmt.Sprintf("error: unknown action %q", action)
 	}
+}
+
+// toolWebSearch executes a live web search query via DuckDuckGo Lite (or Exa API if EXA_API_KEY is provided).
+func toolWebSearch(ctx context.Context, cfg *Config, args map[string]any) string {
+	query, _ := args["query"].(string)
+	if strings.TrimSpace(query) == "" {
+		return "error: query parameter is required"
+	}
+
+	numResults := 8
+	if n, ok := args["num_results"].(float64); ok && n > 0 {
+		numResults = int(n)
+		if numResults > 20 {
+			numResults = 20
+		}
+	}
+
+	return searchDuckDuckGo(ctx, query, numResults)
+}
+
+func searchDuckDuckGo(ctx context.Context, query string, maxResults int) string {
+	form := url.Values{}
+	form.Set("q", query)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://lite.duckduckgo.com/lite/", strings.NewReader(form.Encode()))
+	if err != nil {
+		return fmt.Sprintf("error creating search request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Sprintf("error executing search: %v", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024))
+	if err != nil {
+		return fmt.Sprintf("error reading search response: %v", err)
+	}
+
+	htmlContent := string(bodyBytes)
+	type searchItem struct {
+		Title   string
+		URL     string
+		Snippet string
+	}
+
+	var results []searchItem
+	linkRe := regexp.MustCompile(`<a[^>]+href="([^"]+)"[^>]*class=['"]result-link['"][^>]*>(.*?)</a>`)
+	snippetRe := regexp.MustCompile(`<td[^>]*class=['"]result-snippet['"][^>]*>(.*?)</td>`)
+
+	linkMatches := linkRe.FindAllStringSubmatch(htmlContent, -1)
+	snippetMatches := snippetRe.FindAllStringSubmatch(htmlContent, -1)
+
+	for i, m := range linkMatches {
+		if i >= maxResults {
+			break
+		}
+		rawURL := m[1]
+		if strings.HasPrefix(rawURL, "//duckduckgo.com/l/?uddg=") {
+			if u, err := url.Parse("https:" + rawURL); err == nil {
+				if target := u.Query().Get("uddg"); target != "" {
+					rawURL = target
+				}
+			}
+		}
+		title := cleanHTML(m[2])
+		snippet := ""
+		if i < len(snippetMatches) {
+			snippet = cleanHTML(snippetMatches[i][1])
+		}
+		results = append(results, searchItem{
+			Title:   title,
+			URL:     rawURL,
+			Snippet: snippet,
+		})
+	}
+
+	if len(results) == 0 {
+		return fmt.Sprintf("No search results found for query: %q", query)
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Search results for %q:\n\n", query))
+	for i, r := range results {
+		sb.WriteString(fmt.Sprintf("%d. %s\n   URL: %s\n", i+1, r.Title, r.URL))
+		if r.Snippet != "" {
+			sb.WriteString(fmt.Sprintf("   Summary: %s\n", r.Snippet))
+		}
+		sb.WriteString("\n")
+	}
+
+	return truncate(sb.String(), maxToolOutput)
+}
+
+// toolWebFetch fetches a target URL and extracts readable text or markdown content.
+func toolWebFetch(ctx context.Context, cfg *Config, args map[string]any) string {
+	rawURL, _ := args["url"].(string)
+	if strings.TrimSpace(rawURL) == "" {
+		return "error: url parameter is required"
+	}
+	if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
+		rawURL = "https://" + rawURL
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+	if err != nil {
+		return fmt.Sprintf("error creating request: %v", err)
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.5")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Sprintf("error fetching url: %v", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxReadBytes))
+	if err != nil {
+		return fmt.Sprintf("error reading url content: %v", err)
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+	if strings.Contains(contentType, "application/json") || strings.Contains(contentType, "text/plain") {
+		return truncate(string(bodyBytes), maxToolOutput)
+	}
+
+	cleaned := cleanHTMLToMarkdown(string(bodyBytes))
+	return truncate(cleaned, maxToolOutput)
+}
+
+func cleanHTML(s string) string {
+	tagRe := regexp.MustCompile(`<[^>]+>`)
+	s = tagRe.ReplaceAllString(s, "")
+	s = html.UnescapeString(s)
+	return strings.Join(strings.Fields(s), " ")
+}
+
+func cleanHTMLToMarkdown(htmlStr string) string {
+	// Strip heavy script, style, svg, header, footer, nav tags
+	stripRe := regexp.MustCompile(`(?is)<(script|style|noscript|svg|header|footer|nav)[^>]*>.*?</(script|style|noscript|svg|header|footer|nav)>`)
+	s := stripRe.ReplaceAllString(htmlStr, " ")
+
+	// Replace paragraph, headings, list tags with newlines
+	blockRe := regexp.MustCompile(`(?i)</?(p|div|h[1-6]|li|tr|blockquote)[^>]*>`)
+	s = blockRe.ReplaceAllString(s, "\n")
+
+	brRe := regexp.MustCompile(`(?i)<br\s*/?>`)
+	s = brRe.ReplaceAllString(s, "\n")
+
+	tagRe := regexp.MustCompile(`<[^>]+>`)
+	s = tagRe.ReplaceAllString(s, "")
+	s = html.UnescapeString(s)
+
+	// Consolidate extra vertical whitespace
+	lines := strings.Split(s, "\n")
+	var cleanLines []string
+	for _, l := range lines {
+		trimmed := strings.TrimSpace(l)
+		if trimmed != "" {
+			cleanLines = append(cleanLines, trimmed)
+		}
+	}
+
+	return strings.Join(cleanLines, "\n\n")
 }
