@@ -1,39 +1,53 @@
 package main
 
 import (
+	"embed"
+	"fmt"
 	"html/template"
 	"net/http"
 	"sync"
 )
 
+//go:embed web/*.html
+var webFS embed.FS
+
 var (
-	tmplOnce sync.Once
-	tmpls    map[string]*template.Template
+	tmplOnce  sync.Once
+	pagesTmpl map[string]*template.Template
+	fragsTmpl map[string]*template.Template
 )
 
 // loadTemplates parses and caches HTML page templates and HTMX fragment partials once on startup.
-func loadTemplates() map[string]*template.Template {
+func loadTemplates() {
 	tmplOnce.Do(func() {
-		tmpls = map[string]*template.Template{}
-		base := template.Must(template.ParseFiles("web/base.html"))
-		for _, page := range []string{"index", "shell", "opencode", "gpio", "piscope", "tools"} {
+		pagesTmpl = map[string]*template.Template{}
+		fragsTmpl = map[string]*template.Template{}
+
+		base := template.Must(template.ParseFS(webFS, "web/base.html"))
+
+		pages := []string{"index", "shell", "opencode", "gpio", "piscope", "tools"}
+		for _, p := range pages {
 			t := template.Must(base.Clone())
-			t = template.Must(t.ParseFiles("web/" + page + ".html"))
-			tmpls[page] = t
+			t = template.Must(t.ParseFS(webFS, "web/"+p+".html"))
+			pagesTmpl[p] = t
+			pagesTmpl[p+".html"] = t
 		}
-		for _, frag := range []string{"status", "networks", "message", "gpio_pins", "reverse_ssh"} {
-			t := template.Must(template.ParseFiles("web/" + frag + ".html"))
-			tmpls[frag] = t
+
+		frags := []string{"status", "networks", "message", "gpio_pins", "reverse_ssh"}
+		for _, f := range frags {
+			t := template.Must(template.ParseFS(webFS, "web/"+f+".html"))
+			fragsTmpl[f] = t
+			fragsTmpl[f+".html"] = t
 		}
 	})
-	return tmpls
 }
 
 // renderPage executes a full HTML layout template extending web/base.html.
 func renderPage(w http.ResponseWriter, page string, data any) {
-	t, ok := loadTemplates()[page]
+	loadTemplates()
+	t, ok := pagesTmpl[page]
 	if !ok {
-		http.Error(w, "unknown template", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("unknown page template %q", page), http.StatusInternalServerError)
 		return
 	}
 	if err := t.ExecuteTemplate(w, "base.html", data); err != nil {
@@ -43,9 +57,10 @@ func renderPage(w http.ResponseWriter, page string, data any) {
 
 // renderFragment executes an isolated HTMX HTML fragment snippet without base layout wrappers.
 func renderFragment(w http.ResponseWriter, name string, data any) {
-	t, ok := loadTemplates()[name]
+	loadTemplates()
+	t, ok := fragsTmpl[name]
 	if !ok {
-		http.Error(w, "unknown template", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("unknown fragment template %q", name), http.StatusInternalServerError)
 		return
 	}
 	if err := t.Execute(w, data); err != nil {

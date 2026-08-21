@@ -1,8 +1,10 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -15,6 +17,9 @@ import (
 	"sync"
 	"time"
 )
+
+//go:embed static
+var staticFS embed.FS
 
 type WifiNetwork struct {
 	SSID     string
@@ -258,7 +263,6 @@ func (s *Server) handleHotspotDisable(w http.ResponseWriter, r *http.Request) {
 	}
 	renderFragment(w, "message", map[string]string{"type": "success", "text": "Hotspot disabled"})
 }
-
 
 type PeripheralStatus struct {
 	ID          string `json:"id"`
@@ -767,7 +771,7 @@ func (s *Server) initEInk() {
 		return
 	}
 	log.Printf("E-Ink display enabled (EINK_DISPLAY=1). Reserving SPI bus for 2.13-inch e-Paper HAT...")
-	
+
 	// Enable SPI via raspi-config nonint if /dev/spidev0.0 does not exist
 	if _, err := os.Stat("/dev/spidev0.0"); os.IsNotExist(err) {
 		runCmd("sudo", "-n", "raspi-config", "nonint", "do_spi", "0")
@@ -777,7 +781,7 @@ func (s *Server) initEInk() {
 	go func() {
 		time.Sleep(2 * time.Second)
 		s.refreshEInkDisplay("")
-		
+
 		ticker := time.NewTicker(20 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
@@ -831,9 +835,19 @@ func main() {
 		log.Fatal(err)
 	}
 	ocProxy = httputil.NewSingleHostReverseProxy(target)
+	ocProxy.FlushInterval = 100 * time.Millisecond
+	ocProxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		log.Printf("opencode proxy error: %v", err)
+		http.Error(w, fmt.Sprintf("OpenCode agent server (opencode-tiny) is unreachable at http://127.0.0.1:3457: %v", err), http.StatusBadGateway)
+	}
 
 	s := &Server{}
 	s.initEInk()
+
+	subStatic, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		log.Fatalf("static fs error: %v", err)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleRoot)
@@ -859,7 +873,7 @@ func main() {
 	mux.HandleFunc("/api/m5stickc/adc", s.handleM5StickCADC)
 	mux.HandleFunc("/api/eink/refresh", s.handleEInkRefresh)
 
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(subStatic))))
 
 	addr := "0.0.0.0:" + port
 	log.Printf("usb-server listening on %s", addr)
