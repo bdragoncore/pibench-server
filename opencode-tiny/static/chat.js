@@ -16,8 +16,8 @@
   const optClear = document.getElementById('opt-clear');
   const optExportJson = document.getElementById('opt-export-json');
   const optExportMd = document.getElementById('opt-export-md');
-  const optToggleTools = document.getElementById('opt-toggle-tools');
   const modelBadge = document.getElementById('model-badge');
+  const modelSelectBadge = document.getElementById('model-select-badge');
   const statusBar = document.getElementById('status-bar');
   const statusText = document.getElementById('status-text');
 
@@ -335,19 +335,52 @@
     return base + path.replace(/^\//, '');
   }
 
+  // System notification card helper
+  function addSystemMsg(htmlContent) {
+    const card = document.createElement('div');
+    card.className = 'msg system-msg';
+    card.innerHTML = `<div class="msg-content system-notice">${htmlContent}</div>`;
+    log.appendChild(card);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  let cachedModelList = [];
+
+  // Swap active model helper
+  async function swapModel(newModel) {
+    if (!newModel) return;
+    try {
+      const res = await fetch(getApiUrl('api/config'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: newModel }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const active = data.active_model || newModel;
+        const full = active.includes('/') ? active : `openmind/${active}`;
+        if (modelSelectBadge) modelSelectBadge.value = full;
+        if (settingsModelSelect) settingsModelSelect.value = full;
+        addSystemMsg(`⚡ Active AI model swapped to <strong>${escapeHtml(active)}</strong>`);
+      } else {
+        addSystemMsg(`❌ Failed to swap model: ${res.statusText}`);
+      }
+    } catch (err) {
+      console.error('Failed to swap model:', err);
+      addSystemMsg(`❌ Error swapping model: ${err.message}`);
+    }
+  }
+
   // Fetch backend info
   async function loadInfo() {
     try {
-      const res = await fetch(getApiUrl('api/info'));
+      const res = await fetch(getApiUrl('api/config'));
       if (res.ok) {
-        const info = await res.json();
-        if (info.model) {
-          modelBadge.textContent = info.model;
-          modelBadge.title = `Model: ${info.model} | Workdir: ${info.workdir || ''}`;
-        }
+        loadedConfigData = await res.json();
+        updateModelDropdown(loadedConfigData.raw_json || loadedConfigData.default_config || '', loadedConfigData.active_model);
       }
     } catch (e) {
-      modelBadge.textContent = 'opencode-tiny';
+      console.error('loadInfo error:', e);
     }
   }
 
@@ -583,6 +616,33 @@
   async function sendMessage(text) {
     if (!text || isGenerating) return;
 
+    if (text.startsWith('/model')) {
+      input.value = '';
+      autoResizeInput();
+      const arg = text.slice(6).trim();
+      if (!arg) {
+        if (cachedModelList.length > 0) {
+          let html = `<strong>Available Models (click to swap):</strong><div class="model-pills-wrap" style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.5rem;">`;
+          cachedModelList.forEach(m => {
+            const shortName = m.replace(/^openmind\//, '');
+            html += `<button type="button" class="btn-sm model-pill-btn" data-model="${escapeHtml(m)}" style="background:var(--panel-2); border:1px solid var(--border-strong); color:var(--accent); border-radius:12px; padding:0.25rem 0.65rem; cursor:pointer; font-size:0.8rem; font-weight:600;">${escapeHtml(shortName)}</button>`;
+          });
+          html += `</div>`;
+          addSystemMsg(html);
+        } else {
+          addSystemMsg(`Use the header model selector dropdown menu to swap models.`);
+        }
+      } else {
+        const matched = cachedModelList.find(m => m.toLowerCase().includes(arg.toLowerCase()));
+        if (matched) {
+          await swapModel(matched);
+        } else {
+          await swapModel(arg);
+        }
+      }
+      return;
+    }
+
     input.value = '';
     autoResizeInput();
     sendBtn.disabled = true;
@@ -701,35 +761,46 @@
   }
 
   function updateModelDropdown(cfgJsonStr, currentModel) {
-    settingsModelSelect.innerHTML = '';
     const models = parseModelsFromConfig(cfgJsonStr);
-    
+    cachedModelList = models;
+
     if (currentModel && !models.includes(currentModel) && !models.includes(`openmind/${currentModel}`)) {
       models.unshift(currentModel.includes('/') ? currentModel : `openmind/${currentModel}`);
     }
 
-    if (models.length === 0) {
-      const opt = document.createElement('option');
-      opt.value = currentModel || 'openmind/zen-deepseek-v4-flash-free';
-      opt.textContent = opt.value;
-      settingsModelSelect.appendChild(opt);
-    } else {
-      models.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m;
-        opt.textContent = m;
-        settingsModelSelect.appendChild(opt);
-      });
-    }
+    const dropdowns = [settingsModelSelect, modelSelectBadge].filter(Boolean);
 
-    if (currentModel) {
-      const fullModelName = currentModel.includes('/') ? currentModel : `openmind/${currentModel}`;
-      if (Array.from(settingsModelSelect.options).some(o => o.value === fullModelName)) {
-        settingsModelSelect.value = fullModelName;
-      } else if (Array.from(settingsModelSelect.options).some(o => o.value === currentModel)) {
-        settingsModelSelect.value = currentModel;
+    dropdowns.forEach(select => {
+      select.innerHTML = '';
+      if (models.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = currentModel || 'openmind/zen-hy3-free';
+        opt.textContent = select === modelSelectBadge ? opt.value.replace(/^openmind\//, '') : opt.value;
+        select.appendChild(opt);
+      } else {
+        models.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m;
+          opt.textContent = select === modelSelectBadge ? m.replace(/^openmind\//, '') : m;
+          select.appendChild(opt);
+        });
       }
-    }
+
+      if (currentModel) {
+        const fullModelName = currentModel.includes('/') ? currentModel : `openmind/${currentModel}`;
+        if (Array.from(select.options).some(o => o.value === fullModelName)) {
+          select.value = fullModelName;
+        } else if (Array.from(select.options).some(o => o.value === currentModel)) {
+          select.value = currentModel;
+        }
+      }
+    });
+  }
+
+  if (modelSelectBadge) {
+    modelSelectBadge.addEventListener('change', () => {
+      swapModel(modelSelectBadge.value);
+    });
   }
 
   async function openSettingsModal() {
@@ -869,6 +940,10 @@
     if (sessionDropdownWrap && !sessionDropdownWrap.contains(e.target)) {
       if (sessionDropdownMenu) sessionDropdownMenu.classList.add('hidden');
       if (sessionDropdownWrap) sessionDropdownWrap.classList.remove('open');
+    }
+    if (e.target && e.target.classList.contains('model-pill-btn')) {
+      const targetModel = e.target.getAttribute('data-model');
+      if (targetModel) swapModel(targetModel);
     }
   });
 })();
